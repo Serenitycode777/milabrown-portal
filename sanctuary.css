@@ -210,3 +210,20 @@ main{min-width:0}
 .eye:hover,.eye:focus-visible{color:var(--indigo)}
 .eye svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .pw-wrap:has(input[hidden]){display:none}
+/* modality request circle */
+.mod-card{position:relative;padding-right:56px;transition:border-color .2s,box-shadow .2s}
+.pick{position:absolute;top:16px;right:16px;width:28px;height:28px;border-radius:50%;border:1.5px solid var(--mauve);background:#fff;padding:0;display:grid;place-items:center;cursor:pointer;transition:background .2s,border-color .2s,transform .15s}
+.pick::before{content:"";position:absolute;inset:-8px;border-radius:50%}
+.pick svg{width:16px;height:16px;fill:none;stroke:#fff;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round;opacity:0;transition:opacity .2s}
+.pick:hover{border-color:var(--indigo);transform:scale(1.08)}
+.pick[aria-pressed="true"]{background:var(--indigo);border-color:var(--indigo)}
+.pick[aria-pressed="true"] svg{opacity:1}
+.mod-card.picked{border-color:var(--indigo);box-shadow:0 0 0 1px var(--indigo),var(--sh)}
+.pick-hint{margin:-6px 0 14px}
+.req-bar{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:50;width:min(560px,calc(100% - 32px));background:#fff;border:1px solid var(--stone);border-radius:20px;box-shadow:0 18px 40px -16px rgba(91,75,136,.45);padding:14px 16px;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+.req-bar[hidden]{display:none}
+.req-top{grid-column:1/-1;display:flex;justify-content:space-between;align-items:center;color:var(--indigo)}
+.req-bar input{padding:10px 12px}
+.req-bar .btn{padding:11px 18px;white-space:nowrap}
+@media (max-width:480px){.req-bar{grid-template-columns:1fr}.req-bar .btn{width:100%}}
+#view{padding-bottom:140px}
