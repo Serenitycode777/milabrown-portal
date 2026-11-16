@@ -56,7 +56,7 @@
 
   let tab = "requests", sel = null, draft = null, editing = {}, reqFilter = "new", cliFilter = "all", arcFilter = "all";
   const qs = { requests: "", clients: "", archive: "" };
-  const DB = { inquiries: [], milabrownclients: [], profiles: [], modalities: [], library_items: [], retreats: [], client_services: [], protocols: [], retreat_attendance: [] };
+  const DB = { inquiries: [], milabrownclients: [], profiles: [], modalities: [], library_items: [], retreats: [], client_services: [], protocols: [], retreat_attendance: [], email_log: [] };
   const PORTAL_TABLES = ["client_services", "protocols", "retreat_attendance"];
 
   $("login-flower").innerHTML = flower("flower");
@@ -173,15 +173,16 @@
   async function loadAll() {
     if (DEMO) { if (!DB.profiles.length) demoData(); return; }
     const opt = (p) => p.then((r) => (r.error ? [] : r.data)); // old tables may be missing in a fresh project
-    const [inq, crm, p, m, l, r] = await Promise.all([
+    const [inq, crm, p, m, l, r, em] = await Promise.all([
       opt(sb.from("inquiries").select("*").order("created_at", { ascending: false })),
       opt(sb.from("milabrownclients").select("*").order("created_at", { ascending: false })),
       q(sb.from("profiles").select("*").order("created_at", { ascending: false })),
       q(sb.from("modalities").select("*").order("sort")),
       q(sb.from("library_items").select("*").order("created_at", { ascending: false })),
       q(sb.from("retreats").select("*").order("starts_on", { ascending: false, nullsFirst: true })),
+      opt(sb.from("email_log").select("*").order("sent_at", { ascending: false })),
     ]);
-    Object.assign(DB, { inquiries: inq, milabrownclients: crm, profiles: p, modalities: m, library_items: l, retreats: r });
+    Object.assign(DB, { inquiries: inq, milabrownclients: crm, profiles: p, modalities: m, library_items: l, retreats: r, email_log: em });
   }
   async function loadPortal(profileId) {
     if (DEMO || !profileId) return;
@@ -286,12 +287,54 @@
     $("view").innerHTML = ({ requests: vRequests, clients: vClients, library: vLibrary, modalities: vModalities, retreats: vRetreats, archive: vArchive })[tab]();
   }
 
+  // ---------- email (sent from hello@milabrown.pro through the send-email function) ----------
+  const mailsTo = (em) => em ? DB.email_log.filter((m) => (m.to_email || "").toLowerCase() === em.toLowerCase()) : [];
+  const lastMail = (em) => mailsTo(em)[0];
+  document.body.insertAdjacentHTML("beforeend", `<dialog class="mail-dlg" id="mail-dlg" aria-labelledby="mail-h">
+    <form method="dialog" id="mail-form" novalidate>
+      <div class="req-top"><h3 id="mail-h">Send email</h3><button class="linkbtn" type="button" data-mailclose aria-label="Close">✕</button></div>
+      <p class="small muted">From <b>Mila Brown &lt;hello@milabrown.pro&gt;</b> to <b id="mail-to"></b></p>
+      <label for="mail-subj">Subject<input id="mail-subj" type="text" maxlength="200" required></label>
+      <label for="mail-msg">Message<textarea id="mail-msg" rows="10" maxlength="10000" required></textarea></label>
+      <p class="small muted">Sent in your Mila Brown email design, with your signature and a link to milabrown.pro.</p>
+      <p class="note err" id="mail-err" role="alert" hidden></p>
+      <div class="actions"><button class="btn" type="submit" id="mail-send">Send</button><button class="btn ghost" type="button" data-mailclose>Cancel</button></div>
+    </form></dialog>`);
+  let mailCtx = null;
+  function openMail(to, name, inq) {
+    mailCtx = { to, name, inq };
+    const first = (name || "").trim().split(/\s+/)[0] || "";
+    $("mail-to").textContent = name ? `${name} <${to}>` : to;
+    $("mail-subj").value = ""; $("mail-msg").value = first && !/^main site|^test/i.test(name) ? `Hi ${first},\n\n` : "Hello,\n\n";
+    $("mail-err").hidden = true; $("mail-send").disabled = false; $("mail-send").textContent = "Send";
+    $("mail-dlg").showModal(); $("mail-subj").focus();
+  }
+  $("mail-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const subject = $("mail-subj").value.trim(), message = $("mail-msg").value.trim(), err = $("mail-err"), btn = $("mail-send");
+    err.hidden = true;
+    if (!subject || !message) { err.textContent = "Please add a subject and a message."; err.hidden = false; return; }
+    btn.disabled = true; btn.textContent = "Sending…";
+    let row = { to_email: mailCtx.to, to_name: mailCtx.name || null, subject, body: message, inquiry_id: mailCtx.inq || null, sent_at: new Date().toISOString() };
+    if (!DEMO) {
+      const { data, error } = await sb.functions.invoke("send-email", { body: { to: mailCtx.to, name: mailCtx.name || "", subject, message, inquiry_id: mailCtx.inq || null } });
+      let msg = data && data.error;
+      if (error) { try { const j = await error.context.json(); msg = j.error || error.message; } catch { msg = error.message; } }
+      if (msg || !data || !data.ok) { btn.disabled = false; btn.textContent = "Send"; err.textContent = "Not sent: " + (msg || "unknown error") + (/not found|404|failed to send a request/i.test(msg || "") ? ". Is the send-email function set up in Supabase?" : ""); err.hidden = false; return; }
+      if (data.log) row = data.log;
+    }
+    DB.email_log.unshift(row);
+    if (mailCtx.inq) { const r = DB.inquiries.find((x) => String(x.id) === String(mailCtx.inq)); if (r && !r.contacted) { try { if (!DEMO) await write("inquiries", r.id, { contacted: true }); r.contacted = true; } catch {} } }
+    $("mail-dlg").close(); toast(DEMO ? "Preview: in the live admin this email is sent." : "Email sent to " + mailCtx.to); render();
+  });
+
   function reqCard(r) {
     return `<article class="card req${r.contacted || r.archived ? " done" : ""}">
       <div class="req-top"><h3>${esc(r.name || "(no name)")}</h3><span class="small muted">${fmtWhen(r.created_at)}</span></div>
       <dl class="meta">${r.email ? `<div><dt>Email</dt><dd><a href="mailto:${esc(r.email)}">${esc(r.email)}</a></dd></div>` : ""}${r.phone ? `<div><dt>Phone</dt><dd><a href="${esc(telHref(r.phone))}">${esc(r.phone)}</a></dd></div>` : ""}${r.format ? `<div><dt>Format / topic</dt><dd>${esc(r.format)}</dd></div>` : ""}<div><dt>Modalities</dt><dd>${esc(r.modalities || "Open to suggestions")}</dd></div></dl>
       ${r.goal ? `<p class="goal">“${esc(r.goal)}”</p>` : ""}
-      <div class="actions">${"contacted" in r ? `<label class="check"><input type="checkbox" data-contacted="${r.id}" ${r.contacted ? "checked" : ""}> Contacted</label>` : ""}
+      ${lastMail(r.email) ? `<p class="small muted mail-note">✉ Emailed ${fmtWhen(lastMail(r.email).sent_at)} · “${esc(lastMail(r.email).subject)}”</p>` : ""}
+      <div class="actions">${r.email ? `<button class="btn sm" type="button" data-mail="${esc(r.email)}" data-name="${esc(r.name || "")}" data-inq="${r.id}">✉ Send email</button>` : ""}${"contacted" in r ? `<label class="check"><input type="checkbox" data-contacted="${r.id}" ${r.contacted ? "checked" : ""}> Contacted</label>` : ""}
         ${r.archived ? "" : `<button class="btn ghost sm" type="button" data-confirm="${r.id}">Confirm as client</button>`}
         <button class="btn ghost sm" type="button" data-archive="inquiries" data-id="${r.id}">${r.archived ? "Restore" : "Archive"}</button></div></article>`;
   }
@@ -327,6 +370,12 @@
     let html = formHtml("milabrownclients", p.crm ? "Client card" : "Client card (new)", p.crm ? p.crm : crmRow, btns);
     if (draft) return html;
     const email = (p.crm && p.crm.email) || (p.prof && p.prof.email);
+    if (email) {
+      const sent = mailsTo(email);
+      html = `<div class="panel"><div class="req-top"><h3>Email</h3><button class="btn sm" type="button" data-mail="${esc(email)}" data-name="${esc(nameOf(p))}">✉ Send email</button></div>
+        <p class="small muted">From hello@milabrown.pro to ${esc(email)}. Replies come to your hello@ inbox.</p>
+        ${sent.length ? `<div class="list">${sent.map((m) => `<div class="item"><div><b>${esc(m.subject)}</b> <span class="muted small">· ${fmtWhen(m.sent_at)}</span><p class="small muted mail-body">${esc(m.body || "")}</p></div></div>`).join("")}</div>` : `<p class="muted small">No emails sent from the admin yet.</p>`}</div>` + html;
+    }
     if (!p.prof) {
       html += `<div class="panel invite"><h3>Sanctuary access</h3><p class="muted">${esc(nameOf(p))} doesn't have a Sanctuary login yet. Invite them and their portal (services, protocols, retreats) appears here automatically.</p>
         ${email ? `<ol class="small"><li>Copy their email: <b>${esc(email)}</b> <button class="btn ghost sm" type="button" data-copy="${esc(email)}">Copy</button></li><li>Open Supabase and click <b>Invite user</b>, paste the email, send.</li></ol>
@@ -383,6 +432,8 @@
   document.addEventListener("click", async (e) => {
     const T = (s) => e.target.closest(s);
     let el;
+    if ((el = T("[data-mail]"))) { openMail(el.dataset.mail, el.dataset.name, el.dataset.inq); return; }
+    if (T("[data-mailclose]")) { $("mail-dlg").close(); return; }
     if ((el = T("[data-tab]"))) { tab = el.dataset.tab; editing = {}; draft = null; render(); return; }
     if ((el = T("[data-sel]"))) { selectPerson(el.dataset.sel); return; }
     if ((el = T("[data-chip]"))) { const v = el.dataset.v; if (el.dataset.chip === "req") reqFilter = v; else if (el.dataset.chip === "cli") cliFilter = v; else arcFilter = v; render(); return; }
