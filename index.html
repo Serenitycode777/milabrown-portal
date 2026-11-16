@@ -11,6 +11,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&family=Jost:wght@300;400;500&display=swap&subset=cyrillic">
 <link rel="stylesheet" href="sanctuary.css">
+<script>/* remember invite / password-reset links before the login library reads the address */
+  window.__AUTH_TYPE = new URLSearchParams(location.hash.slice(1)).get("type") || new URLSearchParams(location.search).get("type") || "";</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js"></script>
 <script src="common.js"></script>
 </head>
@@ -29,12 +31,37 @@
     <form id="login-form" novalidate>
       <label for="login-email" data-i="yourEmail"></label>
       <input id="login-email" type="email" autocomplete="email" required placeholder="you@example.com">
-      <button class="btn" id="login-btn" type="submit" data-i="sendLink"></button>
+      <label for="login-pass" data-i="password"></label>
+      <input id="login-pass" type="password" autocomplete="current-password" required>
+      <button class="btn" id="login-btn" type="submit" data-i="signIn"></button>
+      <div class="login-links"><button class="linkbtn" type="button" id="forgot" data-i="forgot"></button><button class="linkbtn" type="button" id="use-link" data-i="useLink"></button></div>
     </form>
     <p class="note" id="login-ok" role="status" hidden></p>
     <p class="note err" id="login-err" role="alert" hidden></p>
-    <p class="small muted"><span data-i="noPassword"></span> <a href="https://milabrown.pro/#contact" data-i="getInTouch"></a></p>
+    <p class="small muted"><span data-i="notClient"></span> <a href="https://milabrown.pro/#contact" data-i="getInTouch"></a></p>
     <button class="btn ghost" id="demo-enter" type="button" hidden data-i="openPreview"></button>
+    <button class="linkbtn" id="demo-setpw" type="button" hidden data-i="previewSetPw"></button>
+  </div>
+</section>
+
+<!-- Create / reset password -->
+<section class="login" id="setpw" hidden>
+  <div class="login-card">
+    <div class="lang-switch" role="group" aria-label="Language"><button type="button" data-setlang="en">EN</button><button type="button" data-setlang="ru">RU</button></div>
+    <div id="setpw-flower"></div>
+    <p class="eyebrow" data-i="loginEyebrow"></p>
+    <h1 id="setpw-title"></h1>
+    <p class="muted" id="setpw-lead"></p>
+    <form id="setpw-form" novalidate>
+      <label for="pw1" data-i="newPassword"></label>
+      <input id="pw1" type="password" autocomplete="new-password" minlength="8" required>
+      <label for="pw2" data-i="repeatPassword"></label>
+      <input id="pw2" type="password" autocomplete="new-password" minlength="8" required>
+      <label class="check" style="text-transform:none;letter-spacing:0;font-weight:400"><input type="checkbox" id="pw-show"> <span data-i="showPassword"></span></label>
+      <button class="btn" id="setpw-btn" type="submit" data-i="savePassword"></button>
+    </form>
+    <p class="note err" id="setpw-err" role="alert" hidden></p>
+    <button class="linkbtn" type="button" id="setpw-skip" data-i="skipForNow"></button>
   </div>
 </section>
 
@@ -60,7 +87,16 @@
   // ---------- interface text, English and Russian ----------
   const TXT = {
     en: {
-      demo: "Preview with sample data · nothing here is real", loginEyebrow: "Mila Brown · client space",
+      demo: "Preview with sample data · nothing here is real",
+      password: "Password", signIn: "Sign in", signingIn: "Signing in…", forgot: "Forgot password?", useLink: "Email me a sign-in link instead",
+      notClient: "Not a client yet?", previewSetPw: "Preview: create password screen",
+      badLogin: "Email or password is incorrect. No password yet? Use “Email me a sign-in link instead”.", needPass: "Please enter your password.",
+      resetSent: (e) => `If <b>${e}</b> is registered, we've sent a link to set a new password.`, typeEmailFirst: "Type your email above first.",
+      createTitle: "Create your password", createLead: "Welcome! Choose a password for your Sanctuary. Next time, sign in with your email and this password.",
+      resetTitle: "Set a new password", resetLead: "Choose a new password for your Sanctuary.",
+      newPassword: "New password (at least 8 characters)", repeatPassword: "Repeat password", showPassword: "Show password", savePassword: "Save password", skipForNow: "Skip for now",
+      pwShort: "Please use at least 8 characters.", pwMismatch: "The two passwords don't match.", pwSaved: "Password saved",
+      pwPanel: "Password", pwPanelText: "Sign in with your email and password, or ask for an email link anytime.", changePassword: "Save new password", loginEyebrow: "Mila Brown · client space",
       loginLead: "Your protocols, sessions, retreats and practice library in one place.", yourEmail: "Your email",
       sendLink: "Send me a sign-in link", sending: "Sending…", noPassword: "No password needed. Not a client yet?", getInTouch: "Get in touch",
       openPreview: "Open the preview", linkSent: (e) => `Check your inbox. We sent a sign-in link to <b>${e}</b>. Open it on this device.`,
@@ -90,7 +126,16 @@
       emailDemo: "In the live portal a confirmation link is sent.", nameTooLong: "Please keep the name under 120 characters.",
     },
     ru: {
-      demo: "Предпросмотр с примерами · данные не настоящие", loginEyebrow: "Мила Браун · пространство клиента",
+      demo: "Предпросмотр с примерами · данные не настоящие",
+      password: "Пароль", signIn: "Войти", signingIn: "Входим…", forgot: "Забыли пароль?", useLink: "Прислать ссылку для входа на email",
+      notClient: "Ещё не клиент?", previewSetPw: "Предпросмотр: экран создания пароля",
+      badLogin: "Неверный email или пароль. Пароля ещё нет? Нажмите «Прислать ссылку для входа на email».", needPass: "Введите пароль.",
+      resetSent: (e) => `Если <b>${e}</b> зарегистрирован, мы отправили ссылку для нового пароля.`, typeEmailFirst: "Сначала введите email выше.",
+      createTitle: "Создайте пароль", createLead: "Добро пожаловать! Придумайте пароль для вашего Sanctuary. В следующий раз входите по email и паролю.",
+      resetTitle: "Новый пароль", resetLead: "Придумайте новый пароль для вашего Sanctuary.",
+      newPassword: "Новый пароль (не менее 8 символов)", repeatPassword: "Повторите пароль", showPassword: "Показать пароль", savePassword: "Сохранить пароль", skipForNow: "Пропустить",
+      pwShort: "Пароль должен быть не короче 8 символов.", pwMismatch: "Пароли не совпадают.", pwSaved: "Пароль сохранён",
+      pwPanel: "Пароль", pwPanelText: "Входите по email и паролю или в любой момент запросите ссылку на email.", changePassword: "Сохранить новый пароль", loginEyebrow: "Мила Браун · пространство клиента",
       loginLead: "Ваши протоколы, сессии, ретриты и библиотека практик в одном месте.", yourEmail: "Ваш email",
       sendLink: "Прислать ссылку для входа", sending: "Отправляем…", noPassword: "Пароль не нужен. Ещё не клиент?", getInTouch: "Напишите Миле",
       openPreview: "Открыть предпросмотр", linkSent: (e) => `Проверьте почту. Мы отправили ссылку для входа на <b>${e}</b>. Откройте её на этом устройстве.`,
@@ -142,6 +187,8 @@
     document.querySelectorAll("[data-i]").forEach((el) => { const v = t[el.dataset.i]; if (typeof v === "string") el.textContent = v; });
     document.querySelectorAll("[data-setlang]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.setlang === getLang())));
     $("demo-flag").textContent = t.demo;
+    if (typeof setLinkMode === "function" && $("login-btn")) { $("login-btn").textContent = linkMode ? t.sendLink : t.signIn; $("use-link").textContent = linkMode ? t.signIn : t.useLink; }
+    if (!$("setpw").hidden) { $("setpw-title").textContent = pwMode === "reset" ? t.resetTitle : t.createTitle; $("setpw-lead").textContent = pwMode === "reset" ? t.resetLead : t.createLead; }
     const counts = { modalities: D.modalities.length, services: D.services.length, protocols: D.protocols.length, retreats: D.attendance.length, library: D.library.length };
     $("nav").innerHTML = Object.keys(ICONS).map((k) => `<button type="button" data-go="${k}" aria-current="${k === current ? "page" : "false"}"${k === "profile" ? ' class="nav-profile"' : ""}><svg viewBox="0 0 24 24">${ICONS[k]}</svg>${t.nav[k]}${counts[k] ? `<span class="count">${counts[k]}</span>` : ""}</button>`).join("");
   }
@@ -153,25 +200,87 @@
   });
 
   // ---------- auth ----------
-  if (DEMO) {
-    $("demo-flag").hidden = false; $("login").hidden = false; $("demo-enter").hidden = false; $("login-form").hidden = true;
-    $("demo-enter").addEventListener("click", () => start(DEMO_DATA));
-  } else {
-    sb.auth.onAuthStateChange((_e, session) => { if (session) load(session.user); else showLogin(); });
-    sb.auth.getSession().then(({ data }) => { if (data.session) load(data.session.user); else showLogin(); });
+  $("setpw-flower").innerHTML = flower("flower");
+  var pwMode = (window.__AUTH_TYPE === "invite" || window.__AUTH_TYPE === "signup") ? "create" : window.__AUTH_TYPE === "recovery" ? "reset" : "";
+  var linkMode = false;
+  function showLogin() { $("app").hidden = true; $("setpw").hidden = true; $("login").hidden = false; }
+  function showSetPw() {
+    const t = T();
+    $("app").hidden = true; $("login").hidden = true; $("setpw").hidden = false;
+    $("setpw-title").textContent = pwMode === "reset" ? t.resetTitle : t.createTitle;
+    $("setpw-lead").textContent = pwMode === "reset" ? t.resetLead : t.createLead;
+    $("setpw-err").hidden = true; $("pw1").focus();
   }
-  function showLogin() { $("app").hidden = true; $("login").hidden = false; }
+  function setLinkMode(on) {
+    const t = T(); linkMode = on;
+    $("login-pass").hidden = on; document.querySelector('label[for="login-pass"]').hidden = on; $("forgot").hidden = on;
+    $("login-btn").textContent = on ? t.sendLink : t.signIn;
+    $("use-link").textContent = on ? t.signIn : t.useLink;
+    $("login-err").hidden = true; $("login-ok").hidden = true;
+  }
+  const say = (id, html) => { $(id).innerHTML = html; $(id).hidden = false; };
+  const okEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+
+  if (DEMO) {
+    $("demo-flag").hidden = false; $("login").hidden = false; $("demo-enter").hidden = false; $("demo-setpw").hidden = false;
+    $("demo-enter").addEventListener("click", () => start(DEMO_DATA));
+    $("demo-setpw").addEventListener("click", () => { pwMode = "create"; showSetPw(); });
+  } else {
+    const route = (session) => { if (session && pwMode) showSetPw(); else if (session) load(session.user); else showLogin(); };
+    sb.auth.onAuthStateChange((event, session) => { if (event === "PASSWORD_RECOVERY") pwMode = "reset"; route(session); });
+    sb.auth.getSession().then(({ data }) => route(data.session));
+  }
+
+  $("use-link").addEventListener("click", () => setLinkMode(!linkMode));
+  $("forgot").addEventListener("click", async () => {
+    const t = T(), email = $("login-email").value.trim();
+    $("login-err").hidden = true; $("login-ok").hidden = true;
+    if (!okEmail(email)) { say("login-err", t.typeEmailFirst); $("login-email").focus(); return; }
+    if (!DEMO) await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + location.pathname });
+    say("login-ok", t.resetSent(esc(email)));
+  });
 
   $("login-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const t = T(), email = $("login-email").value.trim();
+    const t = T(), email = $("login-email").value.trim(), pass = $("login-pass").value;
     $("login-err").hidden = true; $("login-ok").hidden = true;
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { $("login-err").textContent = t.badEmail; $("login-err").hidden = false; return; }
-    $("login-btn").disabled = true; $("login-btn").textContent = t.sending;
-    const r = await sendLink(email);
-    $("login-btn").disabled = false; $("login-btn").textContent = t.sendLink;
-    if (r.ok) { $("login-ok").innerHTML = t.linkSent(esc(email)); $("login-ok").hidden = false; }
-    else { $("login-err").textContent = r.msg; $("login-err").hidden = false; }
+    if (!okEmail(email)) { say("login-err", t.badEmail); return; }
+    if (DEMO) { start(DEMO_DATA); return; }
+    const btn = $("login-btn"); btn.disabled = true;
+    if (linkMode) {
+      btn.textContent = t.sending;
+      const r = await sendLink(email);
+      if (r.ok) say("login-ok", t.linkSent(esc(email))); else say("login-err", esc(r.msg));
+    } else {
+      if (!pass) { btn.disabled = false; say("login-err", t.needPass); $("login-pass").focus(); return; }
+      btn.textContent = t.signingIn;
+      const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+      if (error) say("login-err", /invalid|credentials/i.test(error.message) ? t.badLogin : t.loadFail);
+      $("login-pass").value = "";
+    }
+    btn.disabled = false; btn.textContent = linkMode ? t.sendLink : t.signIn;
+  });
+
+  $("pw-show").addEventListener("change", (e) => { $("pw1").type = $("pw2").type = e.target.checked ? "text" : "password"; });
+  $("setpw-skip").addEventListener("click", async () => {
+    pwMode = ""; history.replaceState(null, "", location.pathname);
+    if (DEMO) { start(DEMO_DATA); return; }
+    const { data } = await sb.auth.getSession(); if (data.session) load(data.session.user); else showLogin();
+  });
+  $("setpw-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const t = T(), a = $("pw1").value, b = $("pw2").value;
+    $("setpw-err").hidden = true;
+    if (a.length < 8) { say("setpw-err", t.pwShort); return; }
+    if (a !== b) { say("setpw-err", t.pwMismatch); return; }
+    const btn = $("setpw-btn"); btn.disabled = true;
+    if (!DEMO) {
+      const { data, error } = await sb.auth.updateUser({ password: a });
+      btn.disabled = false;
+      if (error) { say("setpw-err", t.saveFail); return; }
+      pwMode = ""; history.replaceState(null, "", location.pathname); $("pw1").value = $("pw2").value = "";
+      toast(t.pwSaved); load(data.user);
+    } else { btn.disabled = false; pwMode = ""; toast(t.pwSaved); start(DEMO_DATA); }
   });
   $("logout").addEventListener("click", async () => { if (DEMO) location.reload(); else { await sb.auth.signOut(); location.hash = ""; } });
 
@@ -266,6 +375,14 @@
       }
       Object.assign(D.profile, v);
       setLang(v.language); whoName(); go("profile"); toast(T().saved);
+    }
+    if (e.target.id === "password-form") {
+      e.preventDefault();
+      const a = $("pp1").value, b = $("pp2").value;
+      if (a.length < 8) { toast(t.pwShort); return; }
+      if (a !== b) { toast(t.pwMismatch); return; }
+      if (!DEMO) { const { error } = await sb.auth.updateUser({ password: a }); if (error) { toast(t.saveFail); return; } }
+      $("pp1").value = $("pp2").value = ""; toast(t.pwSaved);
     }
     if (e.target.id === "email-form") {
       e.preventDefault();
@@ -374,6 +491,12 @@
           <p class="small muted wide">${t.langNote}</p>
         </div>
         <div class="actions"><button class="btn" type="submit">${t.save}</button></div>
+      </form>
+      <form class="panel" id="password-form" novalidate><h3>${t.pwPanel}</h3>
+        <p class="small muted">${t.pwPanelText}</p>
+        <div class="fgrid"><label for="pp1">${t.newPassword}<input id="pp1" type="password" autocomplete="new-password" minlength="8"></label>
+          <label for="pp2">${t.repeatPassword}<input id="pp2" type="password" autocomplete="new-password" minlength="8"></label></div>
+        <div class="actions"><button class="btn ghost" type="submit">${t.changePassword}</button></div>
       </form>
       <form class="panel" id="email-form" novalidate><h3>${t.loginEmail}</h3>
         <p class="muted">${esc(p.email || "")}</p>
