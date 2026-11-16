@@ -76,7 +76,12 @@
     </div>
   </header>
   <div class="shell">
-    <nav class="side" aria-label="Sections" id="nav"></nav>
+    <div class="nav-wrap nav-b" id="nav-wrap">
+      <button class="nav-arrow left" type="button" id="nav-left" aria-label="Scroll menu left" tabindex="-1"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <nav class="side" aria-label="Sections" id="nav"></nav>
+      <button class="nav-arrow right" type="button" id="nav-right" aria-label="Scroll menu right" tabindex="-1"><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+      <div class="nav-dots" id="nav-dots" aria-hidden="true"></div>
+    </div>
     <main id="view" tabindex="-1"></main>
   </div>
 </div>
@@ -199,8 +204,24 @@
     if (!$("setpw").hidden) { $("setpw-title").textContent = pwMode === "reset" ? t.resetTitle : t.createTitle; $("setpw-lead").textContent = pwMode === "reset" ? t.resetLead : t.createLead; }
     const counts = { modalities: D.modalities.length, services: D.services.length, protocols: D.protocols.length, retreats: D.attendance.length, library: D.library.length };
     $("nav").innerHTML = Object.keys(ICONS).map((k) => `<button type="button" data-go="${k}" aria-current="${k === current ? "page" : "false"}"${k === "profile" ? ' class="nav-profile"' : ""}><svg viewBox="0 0 24 24">${ICONS[k]}</svg>${t.nav[k]}${counts[k] ? `<span class="count">${counts[k]}</span>` : ""}</button>`).join("");
+    if (typeof navState === "function") requestAnimationFrame(navState);
   }
   applyStatic();
+
+  // Phone menu: show arrows / dots when there are more sections to the side
+  function navState() {
+    const n = $("nav"), w = $("nav-wrap"); if (!n || !w) return;
+    const max = n.scrollWidth - n.clientWidth;
+    w.classList.toggle("can-left", n.scrollLeft > 4);
+    w.classList.toggle("can-right", n.scrollLeft < max - 4);
+    const pages = max > 4 ? Math.ceil(n.scrollWidth / n.clientWidth) : 0;
+    const cur = pages ? Math.round((n.scrollLeft / max) * (pages - 1)) : 0;
+    $("nav-dots").innerHTML = pages > 1 ? Array.from({ length: pages }, (_, i) => `<i class="${i === cur ? "on" : ""}"></i>`).join("") : "";
+  }
+  $("nav").addEventListener("scroll", () => requestAnimationFrame(navState), { passive: true });
+  window.addEventListener("resize", navState);
+  $("nav-left").addEventListener("click", () => $("nav").scrollBy({ left: -$("nav").clientWidth * 0.7, behavior: "smooth" }));
+  $("nav-right").addEventListener("click", () => $("nav").scrollBy({ left: $("nav").clientWidth * 0.7, behavior: "smooth" }));
 
   document.addEventListener("click", (e) => {
     const l = e.target.closest("[data-setlang]");
