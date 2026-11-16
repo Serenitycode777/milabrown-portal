@@ -1,0 +1,488 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sanctuary Admin</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#5b4b88">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&family=Jost:wght@300;400;500&display=swap">
+<link rel="stylesheet" href="../sanctuary.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js"></script>
+<script src="../common.js"></script>
+</head>
+<body>
+<div class="demo-flag" id="demo-flag" hidden>Admin preview with sample data · changes are not saved</div>
+
+<section class="login" id="login" hidden>
+  <div class="login-card">
+    <div id="login-flower"></div>
+    <p class="eyebrow">For Mila only</p>
+    <h1>Sanctuary Admin</h1>
+    <form id="login-form" novalidate>
+      <label for="login-email">Email</label>
+      <input id="login-email" type="email" autocomplete="username" required>
+      <label for="login-pass">Password <span class="small muted" style="text-transform:none;letter-spacing:0">(or leave empty to get an email link)</span></label>
+      <input id="login-pass" type="password" autocomplete="current-password">
+      <button class="btn" id="login-btn" type="submit">Sign in</button>
+    </form>
+    <p class="note" id="login-ok" role="status" hidden>Check your inbox and open the link on this device.</p>
+    <p class="note err" id="login-err" role="alert" hidden></p>
+    <button class="btn ghost" id="demo-enter" type="button" hidden>Open the preview</button>
+  </div>
+</section>
+
+<div id="app" hidden>
+  <header class="top"><div class="in">
+    <a class="brand" href="../">Sanctuary<small>Admin</small></a>
+    <div class="who"><a class="btn ghost sm hide-sm" href="../">Client view</a><button class="btn ghost sm" id="logout" type="button">Sign out</button></div>
+  </div></header>
+  <div class="shell">
+    <nav class="side" aria-label="Admin sections" id="nav"></nav>
+    <main id="view"></main>
+  </div>
+</div>
+
+<script>
+(function () {
+  const { DEMO, sb, esc, fmtDate, toast, fileUrl, flower, sendLink, DEMO_DATA } = S;
+  const $ = (id) => document.getElementById(id);
+  const INVITE_URL = "https://supabase.com/dashboard/project/sldavkemqnsruvgghnbm/auth/users";
+  const MODS = ["VedaPulse diagnostics", "Vedic Astrology (Jyotish)", "Coaching & mastermind", "Ayurveda", "Kundalini Yoga", "Sadhu Board", "Amethyst Mat + Photon Therapy", "Infrared Sauna", "Breathwork & pranayama", "Meditation", "Sound Healing Bath", "Aromatherapy", "Nature Bathing", "Sacred Geometry art"];
+  const CATS = ["VIP", "RUS", "ENG", "Serenity Moon"];
+  const PREF = { email: "Email", phone: "Phone call", whatsapp: "WhatsApp", telegram: "Telegram" };
+
+  let tab = "requests", sel = null, draft = null, editing = {}, reqFilter = "new", cliFilter = "all", arcFilter = "all";
+  const qs = { requests: "", clients: "", archive: "" };
+  const DB = { inquiries: [], milabrownclients: [], profiles: [], modalities: [], library_items: [], retreats: [], client_services: [], protocols: [], retreat_attendance: [] };
+  const PORTAL_TABLES = ["client_services", "protocols", "retreat_attendance"];
+
+  $("login-flower").innerHTML = flower("flower");
+
+  // ---------- helpers ----------
+  const split = (v) => String(v || "").split(",").map((x) => x.trim()).filter(Boolean);
+  const key = (email) => (email ? "e:" + email.trim().toLowerCase() : "");
+  const todayStr = () => new Date().toISOString().slice(0, 10);
+  const fmtWhen = (v) => { const d = new Date(v); return isNaN(d) ? "" : d.toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit" }); };
+  const telHref = (p) => "tel:" + String(p).replace(/[^\d+]/g, "");
+
+  // ---------- form definitions ----------
+  const F = {
+    milabrownclients: [
+      { k: "name", t: "text", l: "Name", req: true },
+      { k: "email", t: "email", l: "Email" },
+      { k: "phone", t: "text", l: "Phone" },
+      { k: "format", t: "select", l: "Format", o: [["", "Not set"], ["Half-day Reset", "Half-day Reset"], ["Full-day Immersion", "Full-day Immersion"], ["VIP: Full-day + Support", "VIP: Full-day + Support"]] },
+      { k: "retreat_date", t: "date", l: "Retreat date" },
+      { k: "client_since", t: "date", l: "Client since", d: todayStr },
+      { k: "categories", t: "multi", l: "Categories", o: () => [...new Set([...CATS, ...DB.milabrownclients.flatMap((c) => split(c.categories))])], add: true, wide: true },
+      { k: "modalities", t: "multi", l: "Chosen modalities", o: () => MODS, wide: true },
+      { k: "notes", t: "textarea", l: "Program & private notes (only you see these)", wide: true },
+    ],
+    library_items: [
+      { k: "title", t: "text", l: "Title", req: true, wide: true },
+      { k: "kind", t: "select", l: "Type", o: [["mantra", "Mantra"], ["pdf", "Guide / PDF"], ["webinar", "Webinar"], ["audio", "Audio"], ["link", "Link"]] },
+      { k: "published", t: "check", l: "Visible to clients", d: true },
+      { k: "description", t: "textarea", l: "Short description", wide: true },
+      { k: "body", t: "textarea", l: "Mantra text (for mantras)", wide: true },
+      { k: "url", t: "url", l: "Link (webinar, video or page)", wide: true },
+      { k: "file_path", t: "file", l: "File (PDF, audio)", bucket: "library", wide: true },
+    ],
+    modalities: [
+      { k: "title", t: "text", l: "Title", req: true },
+      { k: "category", t: "text", l: "Category" },
+      { k: "duration", t: "text", l: "Duration" },
+      { k: "price", t: "text", l: "Price" },
+      { k: "sort", t: "number", l: "Order (lower first)", d: 100 },
+      { k: "active", t: "check", l: "Show to clients", d: true },
+      { k: "description", t: "textarea", l: "Description", wide: true },
+      { k: "booking_url", t: "url", l: "Booking link", wide: true },
+    ],
+    retreats: [
+      { k: "title", t: "text", l: "Title", req: true, wide: true },
+      { k: "starts_on", t: "date", l: "Starts" },
+      { k: "ends_on", t: "date", l: "Ends" },
+      { k: "location", t: "text", l: "Location" },
+      { k: "format", t: "text", l: "Format" },
+      { k: "price", t: "text", l: "Price" },
+      { k: "published", t: "check", l: "Show to clients", d: true },
+      { k: "description", t: "textarea", l: "Description", wide: true },
+      { k: "signup_url", t: "url", l: "Sign-up link", wide: true },
+    ],
+    client_services: [
+      { k: "modality", t: "list", l: "Service / modality", req: true, src: () => DB.modalities.map((m) => m.title) },
+      { k: "service_date", t: "date", l: "Date", d: todayStr },
+      { k: "notes", t: "textarea", l: "Notes the client will see", wide: true },
+    ],
+    protocols: [
+      { k: "title", t: "text", l: "Protocol title", req: true },
+      { k: "phase", t: "text", l: "Phase" },
+      { k: "start_date", t: "date", l: "Start date" },
+      { k: "status", t: "select", l: "Status", o: [["active", "Active"], ["paused", "Paused"], ["completed", "Completed"]] },
+      { k: "summary", t: "textarea", l: "Summary", wide: true },
+      { k: "tasks", t: "textarea", l: "Checklist: one item per line", wide: true },
+      { k: "file_path", t: "file", l: "Protocol PDF", bucket: "protocols", wide: true },
+    ],
+    retreat_attendance: [
+      { k: "retreat_id", t: "select", l: "Retreat", o: () => [["", "Other (type a title)"]].concat(DB.retreats.map((r) => [r.id, r.title])) },
+      { k: "title", t: "text", l: "Title (if other)" },
+      { k: "attended_on", t: "date", l: "Date" },
+      { k: "status", t: "select", l: "Status", o: [["attended", "Attended"], ["booked", "Booked"], ["cancelled", "Cancelled"]] },
+      { k: "notes", t: "textarea", l: "Notes the client will see", wide: true },
+    ],
+  };
+
+  function fieldHtml(table, f, v) {
+    const id = `${table}-${f.k}`, val = v === undefined || v === null ? (typeof f.d === "function" ? f.d() : f.d ?? "") : v;
+    const w = f.wide ? ' class="wide"' : "";
+    if (f.t === "check") return `<label class="check"${w}><input type="checkbox" id="${id}" ${val ? "checked" : ""}> ${f.l}</label>`;
+    if (f.t === "textarea") return `<label${w} for="${id}">${f.l}<textarea id="${id}">${esc(val)}</textarea></label>`;
+    if (f.t === "select") { const o = typeof f.o === "function" ? f.o() : f.o; return `<label${w} for="${id}">${f.l}<select id="${id}">${o.map(([a, b]) => `<option value="${esc(a)}" ${String(val) === String(a) ? "selected" : ""}>${esc(b)}</option>`).join("")}</select></label>`; }
+    if (f.t === "list") return `<label${w} for="${id}">${f.l}<input id="${id}" list="${id}-dl" value="${esc(val)}"><datalist id="${id}-dl">${f.src().map((x) => `<option value="${esc(x)}">`).join("")}</datalist></label>`;
+    if (f.t === "file") return `<label${w} for="${id}">${f.l}${val ? ` <span class="small muted" style="text-transform:none;letter-spacing:0">current: ${esc(String(val).split("/").pop())}</span>` : ""}<input id="${id}" type="file"></label>`;
+    if (f.t === "multi") {
+      const chosen = split(val), opts = [...new Set([...f.o(), ...chosen])];
+      return `<fieldset class="multi${f.wide ? " wide" : ""}" id="${id}"><legend>${f.l}</legend><div class="checks">${opts.map((o) => `<label class="check"><input type="checkbox" value="${esc(o)}" ${chosen.includes(o) ? "checked" : ""}> ${esc(o)}</label>`).join("")}</div>
+        ${f.add ? `<div class="add-row"><input type="text" placeholder="Add new…" maxlength="30" aria-label="Add new ${esc(f.l)}"><button class="btn ghost sm" type="button" data-addopt="${id}">Add</button></div>` : ""}</fieldset>`;
+    }
+    return `<label${w} for="${id}">${f.l}<input id="${id}" type="${f.t}" value="${esc(val)}"></label>`;
+  }
+  function formHtml(table, title, row, extraBtns) {
+    const e = row && row.id;
+    return `<form class="panel" data-form="${table}" novalidate><h3>${title}</h3><div class="fgrid">${F[table].map((f) => fieldHtml(table, f, row ? row[f.k] : undefined)).join("")}</div>
+      <div class="actions"><button class="btn" type="submit">${e ? "Save changes" : "Add"}</button>${e && !extraBtns ? `<button class="btn ghost" type="button" data-cancel="${table}">Cancel</button>` : ""}${extraBtns || ""}</div></form>`;
+  }
+  function readForm(table) {
+    const out = {}, files = {};
+    for (const f of F[table]) {
+      const el = $(`${table}-${f.k}`); if (!el) continue;
+      if (f.t === "check") out[f.k] = el.checked;
+      else if (f.t === "file") { if (el.files[0]) files[f.k] = { file: el.files[0], bucket: f.bucket }; }
+      else if (f.t === "multi") out[f.k] = [...el.querySelectorAll(".checks input:checked")].map((x) => x.value).join(", ") || null;
+      else if (f.t === "number") out[f.k] = el.value === "" ? null : Number(el.value);
+      else out[f.k] = el.value.trim() === "" ? null : el.value.trim();
+      if (f.req && !out[f.k]) { el.focus(); throw new Error(`Please fill in “${f.l}”.`); }
+    }
+    return { out, files };
+  }
+
+  // ---------- data ----------
+  async function q(p) { const { data, error } = await p; if (error) throw error; return data; }
+  async function loadAll() {
+    if (DEMO) { if (!DB.profiles.length) demoData(); return; }
+    const opt = (p) => p.then((r) => (r.error ? [] : r.data)); // old tables may be missing in a fresh project
+    const [inq, crm, p, m, l, r] = await Promise.all([
+      opt(sb.from("inquiries").select("*").order("created_at", { ascending: false })),
+      opt(sb.from("milabrownclients").select("*").order("created_at", { ascending: false })),
+      q(sb.from("profiles").select("*").order("created_at", { ascending: false })),
+      q(sb.from("modalities").select("*").order("sort")),
+      q(sb.from("library_items").select("*").order("created_at", { ascending: false })),
+      q(sb.from("retreats").select("*").order("starts_on", { ascending: false, nullsFirst: true })),
+    ]);
+    Object.assign(DB, { inquiries: inq, milabrownclients: crm, profiles: p, modalities: m, library_items: l, retreats: r });
+  }
+  async function loadPortal(profileId) {
+    if (DEMO || !profileId) return;
+    const [s, pr, a] = await Promise.all([
+      q(sb.from("client_services").select("*").eq("client_id", profileId).order("service_date", { ascending: false })),
+      q(sb.from("protocols").select("*, protocol_tasks(*)").eq("client_id", profileId).order("created_at", { ascending: false })),
+      q(sb.from("retreat_attendance").select("*").eq("client_id", profileId).order("attended_on", { ascending: false })),
+    ]);
+    DB.client_services = s; DB.protocols = pr; DB.retreat_attendance = a;
+  }
+  function demoData() {
+    const d = JSON.parse(JSON.stringify(DEMO_DATA));
+    DB.inquiries = [
+      { id: "i1", created_at: "2026-11-14T15:20:00", name: "Olga S.", email: "olga@example.com", phone: "(919) 555-0142", format: "Full-day Immersion", modalities: "Sound Healing Bath, Ayurveda, Infrared Sauna", goal: "Rested and clear after a hard year.", contacted: false, archived: false },
+      { id: "i2", created_at: "2026-11-10T09:05:00", name: "Main site: Jyotish reading", email: "maria@example.com", phone: null, format: "Main site: Jyotish reading", modalities: null, goal: "Would love a birth chart reading in December.", contacted: true, archived: false },
+      { id: "i3", created_at: "2026-09-02T18:40:00", name: "Test request", email: "test@example.com", contacted: false, archived: true },
+    ];
+    DB.milabrownclients = [
+      { id: "c1", name: "Anna Example", email: "anna@example.com", phone: "(984) 555-0110", format: "Full-day Immersion", retreat_date: "2026-08-22", client_since: "2026-08-01", categories: "VIP, ENG", modalities: "Sound Healing Bath, Kundalini Yoga, Infrared Sauna", notes: "Prefers mornings. Loves sound baths.", archived: false },
+      { id: "c2", name: "Irina K.", email: "irina@example.com", phone: null, format: "Half-day Reset", retreat_date: "2026-12-06", client_since: "2026-11-01", categories: "RUS", modalities: "Ayurveda, Meditation", notes: "", archived: false },
+      { id: "c3", name: "Yulia G.", email: null, format: "Half-day Reset", retreat_date: "2026-05-10", categories: "RUS, Serenity Moon", archived: true },
+    ];
+    DB.profiles = [{ id: "demo", email: "anna@example.com", full_name: "Anna Example", phone: "", language: "en", contact_pref: "whatsapp" }];
+    DB.modalities = d.modalities; DB.library_items = d.library.map((x) => ({ published: true, ...x })); DB.retreats = d.retreats;
+    DB.client_services = d.services.map((x) => ({ ...x, client_id: "demo" }));
+    DB.protocols = d.protocols.map((x) => ({ ...x, client_id: "demo" }));
+    DB.retreat_attendance = d.attendance.map((x) => ({ ...x, client_id: "demo", retreat_id: "" }));
+  }
+
+  // People = retreat guest cards and Sanctuary accounts, matched by email
+  function people() {
+    const map = new Map();
+    DB.milabrownclients.forEach((c) => { const k = key(c.email) || "c:" + c.id; map.set(k, { key: k, crm: c, prof: null }); });
+    DB.profiles.forEach((p) => { const k = key(p.email) || "p:" + p.id; const e = map.get(k); if (e) e.prof = p; else map.set(k, { key: k, crm: null, prof: p }); });
+    return [...map.values()];
+  }
+  const nameOf = (p) => (p.crm && p.crm.name) || (p.prof && p.prof.full_name) || (p.prof && p.prof.email) || "(no name)";
+
+  async function upload(bucket, file, folder) {
+    const safe = file.name.toLowerCase().replace(/[^a-z0-9.\-]+/g, "-");
+    const path = (folder ? folder + "/" : "") + Date.now() + "-" + safe;
+    if (DEMO) return path;
+    const { error } = await sb.storage.from(bucket).upload(path, file, { upsert: false, contentType: file.type || undefined });
+    if (error) throw new Error("The file didn't upload. Please try again.");
+    return path;
+  }
+
+  async function write(table, id, values) {
+    if (DEMO) {
+      const list = DB[table], i = id ? list.findIndex((x) => x.id === id) : -1;
+      const row = { ...(i >= 0 ? list[i] : { id: "x" + Date.now(), created_at: new Date().toISOString() }), ...values };
+      if (i >= 0) list[i] = row; else list.unshift(row);
+      return row;
+    }
+    return id ? q(sb.from(table).update(values).eq("id", id).select().single()) : q(sb.from(table).insert(values).select().single());
+  }
+
+  async function save(table, profileId) {
+    const { out, files } = readForm(table);
+    const row = editing[table];
+    let tasks = null;
+    if (table === "protocols") { tasks = (out.tasks || "").split("\n").map((x) => x.trim()).filter(Boolean); delete out.tasks; }
+    if (PORTAL_TABLES.includes(table)) out.client_id = profileId;
+    if (table === "retreat_attendance") { if (!out.retreat_id) out.retreat_id = null; if (!out.retreat_id && !out.title) throw new Error("Choose a retreat or type a title."); }
+    for (const [k, v] of Object.entries(files)) out[k] = await upload(v.bucket, v.file, v.bucket === "protocols" ? profileId : "");
+    const saved = await write(table, row && row.id, out);
+    if (tasks) {
+      const old = (row && row.protocol_tasks) || [];
+      const rows = tasks.map((text, i) => ({ protocol_id: saved.id, client_id: profileId, text, sort: i, done: !!(old.find((t) => t.text === text) || {}).done }));
+      if (!DEMO) { await q(sb.from("protocol_tasks").delete().eq("protocol_id", saved.id)); if (rows.length) await q(sb.from("protocol_tasks").insert(rows)); }
+      else saved.protocol_tasks = rows.map((r, i) => ({ id: "t" + Date.now() + i, ...r }));
+    }
+    editing[table] = null;
+    if (!DEMO) { if (PORTAL_TABLES.includes(table)) await loadPortal(profileId); else await loadAll(); }
+    toast(row && row.id ? "Saved" : "Added"); render();
+  }
+
+  async function remove(table, id, profileId) {
+    const row = DB[table].find((x) => x.id === id);
+    if (DEMO) DB[table] = DB[table].filter((x) => x.id !== id);
+    else {
+      await q(sb.from(table).delete().eq("id", id));
+      if (row && row.file_path) await sb.storage.from(table === "protocols" ? "protocols" : "library").remove([row.file_path]);
+      if (PORTAL_TABLES.includes(table)) await loadPortal(profileId); else await loadAll();
+    }
+    toast("Deleted"); render();
+  }
+
+  // ---------- views ----------
+  const NAV = [["requests", "Requests", '<path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/>'], ["clients", "Clients", '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/>'],
+    ["library", "Library", '<path d="M5 4h4v16H5zM10 4h4v16h-4zM15.5 4.5l3.8 1-3.8 14.6-3.6-1"/>'], ["modalities", "Modalities", '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="8" r="4"/><circle cx="12" cy="16" r="4"/>'],
+    ["retreats", "Retreats", '<path d="M3 20h18M6 20l6-14 6 14M9.5 13h5"/>'], ["archive", "Archive", '<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v11h14V9M10 13h4"/>']];
+  const head = (e, t, p) => `<div class="view-head"><p class="eyebrow">${e}</p><h2>${t}</h2>${p ? `<p class="muted">${p}</p>` : ""}</div>`;
+  const chips = (name, cur, opts) => `<div class="filters" role="group">${opts.map(([v, t]) => `<button class="chip" type="button" data-chip="${name}" data-v="${v}" aria-pressed="${v === cur}">${t}</button>`).join("")}</div>`;
+  const search = (name, ph) => `<input class="search" type="search" data-search="${name}" value="${esc(qs[name])}" placeholder="${ph}" aria-label="${ph}">`;
+  const itemBtns = (table, id, file, bucket) => `<div class="actions" style="margin:0;flex:none">${file ? `<button class="btn ghost sm" type="button" data-open="${esc(file)}" data-bucket="${bucket}">File</button>` : ""}<button class="btn ghost sm" type="button" data-edit="${table}" data-id="${id}">Edit</button><button class="btn danger sm" type="button" data-del="${table}" data-id="${id}">Delete</button></div>`;
+  const listHtml = (table, rows, line) => rows.length ? `<div class="list">${rows.map((r) => `<div class="item"><div>${line(r)}</div>${itemBtns(table, r.id, r.file_path, table === "protocols" ? "protocols" : "library")}</div>`).join("")}</div>` : `<p class="muted small">Nothing here yet.</p>`;
+
+  function render() {
+    const fresh = DB.inquiries.filter((r) => !r.archived && !r.contacted).length;
+    $("nav").innerHTML = NAV.map(([k, t, ic]) => `<button type="button" data-tab="${k}" aria-current="${k === tab ? "page" : "false"}"><svg viewBox="0 0 24 24">${ic}</svg>${t}${k === "requests" && fresh ? `<span class="count badge-new">${fresh}</span>` : ""}</button>`).join("");
+    $("view").innerHTML = ({ requests: vRequests, clients: vClients, library: vLibrary, modalities: vModalities, retreats: vRetreats, archive: vArchive })[tab]();
+  }
+
+  function reqCard(r) {
+    return `<article class="card req${r.contacted || r.archived ? " done" : ""}">
+      <div class="req-top"><h3>${esc(r.name || "(no name)")}</h3><span class="small muted">${fmtWhen(r.created_at)}</span></div>
+      <dl class="meta">${r.email ? `<div><dt>Email</dt><dd><a href="mailto:${esc(r.email)}">${esc(r.email)}</a></dd></div>` : ""}${r.phone ? `<div><dt>Phone</dt><dd><a href="${esc(telHref(r.phone))}">${esc(r.phone)}</a></dd></div>` : ""}${r.format ? `<div><dt>Format / topic</dt><dd>${esc(r.format)}</dd></div>` : ""}<div><dt>Modalities</dt><dd>${esc(r.modalities || "Open to suggestions")}</dd></div></dl>
+      ${r.goal ? `<p class="goal">“${esc(r.goal)}”</p>` : ""}
+      <div class="actions">${"contacted" in r ? `<label class="check"><input type="checkbox" data-contacted="${r.id}" ${r.contacted ? "checked" : ""}> Contacted</label>` : ""}
+        ${r.archived ? "" : `<button class="btn ghost sm" type="button" data-confirm="${r.id}">Confirm as client</button>`}
+        <button class="btn ghost sm" type="button" data-archive="inquiries" data-id="${r.id}">${r.archived ? "Restore" : "Archive"}</button></div></article>`;
+  }
+  function vRequests() {
+    const s = qs.requests.toLowerCase();
+    const rows = DB.inquiries.filter((r) => !r.archived && (reqFilter === "all" || (reqFilter === "done") === !!r.contacted) && (!s || [r.name, r.email, r.phone, r.format, r.modalities, r.goal].join(" ").toLowerCase().includes(s)));
+    const active = DB.inquiries.filter((r) => !r.archived);
+    return head("From your websites", "Requests", `${active.length} active · ${active.filter((r) => !r.contacted).length} new. Booking and contact forms from retreat.milabrown.pro and milabrown.pro.`) +
+      `<div class="toolbar">${chips("req", reqFilter, [["new", "New"], ["done", "Contacted"], ["all", "All"]])}${search("requests", "Search name, email…")}</div>
+      <div class="stack">${rows.map(reqCard).join("") || `<div class="empty">${DB.inquiries.length ? "Nothing here." : "No requests yet."}</div>`}</div>`;
+  }
+
+  function vClients() {
+    const all = people().filter((p) => !(p.crm && p.crm.archived));
+    const t = todayStr(), s = qs.clients.toLowerCase();
+    const upcoming = (p) => p.crm && p.crm.retreat_date && p.crm.retreat_date >= t;
+    const shown = all.filter((p) => (cliFilter === "all" || (cliFilter === "upcoming" ? upcoming(p) : cliFilter === "portal" ? !!p.prof : !upcoming(p))) &&
+      (!s || [nameOf(p), p.crm && p.crm.email, p.prof && p.prof.email, p.crm && p.crm.categories, p.crm && p.crm.notes].join(" ").toLowerCase().includes(s)));
+    const list = `<div class="clients-col">${search("clients", "Search clients…")}${chips("cli", cliFilter, [["all", "All"], ["upcoming", "Upcoming"], ["past", "Past"], ["portal", "In Sanctuary"]])}
+      <button class="btn sm" type="button" data-newclient style="width:100%;margin-bottom:10px">+ New client</button>
+      <div class="clients">${shown.map((p) => `<button type="button" data-sel="${esc(p.key)}" aria-current="${p.key === sel && !draft}"><b style="font-weight:500">${esc(nameOf(p))}</b>
+        <small>${esc((p.crm && p.crm.email) || (p.prof && p.prof.email) || "no email")}</small>
+        <span class="mini">${p.prof ? `<i class="dot on" title="Has Sanctuary access"></i>Sanctuary` : `<i class="dot"></i>Not invited`}${p.crm && p.crm.retreat_date ? ` · ${fmtDate(p.crm.retreat_date)}` : ""}${p.crm && p.crm.categories ? ` · ${esc(p.crm.categories)}` : ""}</span></button>`).join("") || `<p class="muted small">No clients match.</p>`}</div></div>`;
+    const p = draft ? { key: "draft", crm: null, prof: null } : all.find((x) => x.key === sel);
+    const sub = `${all.length} clients · ${all.filter(upcoming).length} upcoming retreats · ${all.filter((x) => x.prof).length} in Sanctuary`;
+    if (!p) return head("Clients", "Clients", sub) + `<div class="split">${list}<div class="empty">Pick a client on the left, or add a new one.</div></div>`;
+    return head("Clients", draft ? "New client" : esc(nameOf(p)), draft ? "Fill in the card and save." : sub) + `<div class="split">${list}<div>${clientDetail(p)}</div></div>`;
+  }
+
+  function clientDetail(p) {
+    const crmRow = p.crm || (draft ? { ...draft } : p.prof ? { name: p.prof.full_name, email: p.prof.email, phone: p.prof.phone } : null);
+    const btns = p.crm ? `<button class="btn ghost" type="button" data-archive="milabrownclients" data-id="${p.crm.id}">Archive</button><button class="btn danger" type="button" data-del="milabrownclients" data-id="${p.crm.id}">Delete card</button>` : draft ? `<button class="btn ghost" type="button" data-canceldraft>Cancel</button>` : "";
+    let html = formHtml("milabrownclients", p.crm ? "Client card" : "Client card (new)", p.crm ? p.crm : crmRow, btns);
+    if (draft) return html;
+    const email = (p.crm && p.crm.email) || (p.prof && p.prof.email);
+    if (!p.prof) {
+      html += `<div class="panel invite"><h3>Sanctuary access</h3><p class="muted">${esc(nameOf(p))} doesn't have a Sanctuary login yet. Invite them and their portal (services, protocols, retreats) appears here automatically.</p>
+        ${email ? `<ol class="small"><li>Copy their email: <b>${esc(email)}</b> <button class="btn ghost sm" type="button" data-copy="${esc(email)}">Copy</button></li><li>Open Supabase and click <b>Invite user</b>, paste the email, send.</li></ol>
+        <div class="actions"><a class="btn sm" href="${DEMO ? "#" : INVITE_URL}" target="_blank" rel="noopener" data-invite>Open Supabase invite</a></div>` : `<p class="small">Add an email to the client card first.</p>`}</div>`;
+      return html;
+    }
+    const pr = p.prof, id = pr.id;
+    const svc = DB.client_services.filter((x) => x.client_id === id), prot = DB.protocols.filter((x) => x.client_id === id), at = DB.retreat_attendance.filter((x) => x.client_id === id);
+    const prEdit = editing.protocols ? { ...editing.protocols, tasks: (editing.protocols.protocol_tasks || []).slice().sort((a, b) => a.sort - b.sort).map((t) => t.text).join("\n") } : null;
+    html += `<div class="panel portal-head"><h3>Sanctuary portal</h3><p class="small muted">${[`<i class="dot on"></i>Has access`, pr.phone ? "Phone in profile: " + esc(pr.phone) : "", PREF[pr.contact_pref] ? "Prefers " + PREF[pr.contact_pref] : "", "Portal in " + (pr.language === "ru" ? "Russian" : "English")].filter(Boolean).join(" · ")}</p>
+        <p class="small muted">Everything below is visible to ${esc(nameOf(p))} in their Sanctuary.</p></div>
+      <div class="panel"><h3>Services</h3>${listHtml("client_services", svc, (r) => `<b>${esc(r.modality)}</b> <span class="muted small">· ${fmtDate(r.service_date)}</span>${r.notes ? `<p class="small muted">${esc(r.notes)}</p>` : ""}`)}</div>
+      ${formHtml("client_services", editing.client_services ? "Edit service" : "Add a service", editing.client_services)}
+      <div class="panel"><h3>Protocols</h3>${listHtml("protocols", prot, (r) => { const t = r.protocol_tasks || []; return `<b>${esc(r.title)}</b> <span class="pill ${esc(r.status)}">${esc(r.status)}</span>${r.phase ? `<p class="small muted">${esc(r.phase)}</p>` : ""}${t.length ? `<p class="small muted">${t.filter((x) => x.done).length} of ${t.length} checklist items done</p>` : ""}`; })}</div>
+      ${formHtml("protocols", prEdit ? "Edit protocol" : "Add a protocol", prEdit)}
+      <div class="panel"><h3>Retreats</h3>${listHtml("retreat_attendance", at, (r) => `<b>${esc(r.title || (DB.retreats.find((x) => x.id === r.retreat_id) || {}).title || "Retreat")}</b> <span class="pill ${esc(r.status)}">${esc(r.status)}</span> <span class="muted small">${fmtDate(r.attended_on)}</span>`)}</div>
+      ${formHtml("retreat_attendance", editing.retreat_attendance ? "Edit retreat" : "Add a retreat", editing.retreat_attendance)}`;
+    return html;
+  }
+
+  function vLibrary() {
+    return head("Shared with every client", "Library", "Mantras, PDFs, audio and webinar links.") + formHtml("library_items", editing.library_items ? "Edit library item" : "Add a library item", editing.library_items) +
+      `<div class="panel"><h3>All items</h3>${listHtml("library_items", DB.library_items, (r) => `<b>${esc(r.title)}</b> <span class="pill">${esc(r.kind)}</span>${r.published ? "" : ` <span class="pill paused">hidden</span>`}${r.description ? `<p class="small muted">${esc(r.description)}</p>` : ""}`)}</div>`;
+  }
+  function vModalities() {
+    return head("What you offer", "Modalities", "Shown to clients in their Sanctuary.") + formHtml("modalities", editing.modalities ? "Edit modality" : "Add a modality", editing.modalities) +
+      `<div class="panel"><h3>All modalities</h3>${listHtml("modalities", DB.modalities, (r) => `<b>${esc(r.title)}</b>${r.category ? ` <span class="muted small">· ${esc(r.category)}</span>` : ""}${r.active ? "" : ` <span class="pill paused">hidden</span>`}`)}</div>`;
+  }
+  function vRetreats() {
+    return head("Retreats", "Retreats", "Clients see published retreats under Retreats → Upcoming.") + formHtml("retreats", editing.retreats ? "Edit retreat" : "Add a retreat", editing.retreats) +
+      `<div class="panel"><h3>All retreats</h3>${listHtml("retreats", DB.retreats, (r) => `<b>${esc(r.title)}</b> <span class="muted small">${r.starts_on ? fmtDate(r.starts_on) : "any date"}</span>${r.published ? "" : ` <span class="pill paused">hidden</span>`}`)}</div>`;
+  }
+  function vArchive() {
+    const s = qs.archive.toLowerCase();
+    const items = [...(arcFilter === "cli" ? [] : DB.inquiries.filter((r) => r.archived).map((r) => ({ r, k: "inq", d: r.created_at || "" }))),
+      ...(arcFilter === "inq" ? [] : DB.milabrownclients.filter((c) => c.archived).map((r) => ({ r, k: "cli", d: r.retreat_date || r.created_at || "" })))]
+      .filter((x) => !s || [x.r.name, x.r.email, x.r.phone, x.r.notes, x.r.goal].join(" ").toLowerCase().includes(s))
+      .sort((a, b) => String(b.d).localeCompare(String(a.d)));
+    return head("No longer active", "Archive", "Archived requests and former clients. Restore brings them back.") +
+      `<div class="toolbar">${chips("arc", arcFilter, [["all", "All"], ["inq", "Requests"], ["cli", "Former clients"]])}${search("archive", "Search archive…")}</div>
+      <div class="stack">${items.map((x) => x.k === "inq" ? reqCard(x.r) : `<article class="card req done"><span class="pill cancelled" style="justify-self:start">Former client</span><div class="req-top"><h3>${esc(x.r.name || "(no name)")}</h3><span class="small muted">${x.r.retreat_date ? fmtDate(x.r.retreat_date) : ""}</span></div>
+        ${x.r.email ? `<p class="small">${esc(x.r.email)}</p>` : ""}${x.r.notes ? `<p class="small muted">${esc(x.r.notes)}</p>` : ""}
+        <div class="actions"><button class="btn ghost sm" type="button" data-archive="milabrownclients" data-id="${x.r.id}">Restore</button><button class="btn danger sm" type="button" data-del="milabrownclients" data-id="${x.r.id}">Delete</button></div></article>`).join("") || `<div class="empty">The archive is empty.</div>`}</div>`;
+  }
+
+  // ---------- events ----------
+  const current = () => people().find((x) => x.key === sel);
+  async function selectPerson(k) {
+    sel = k; draft = null; editing = {};
+    const p = current();
+    try { await loadPortal(p && p.prof && p.prof.id); } catch { toast("Couldn't load this client's portal."); }
+    render(); window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+  document.addEventListener("click", async (e) => {
+    const T = (s) => e.target.closest(s);
+    let el;
+    if ((el = T("[data-tab]"))) { tab = el.dataset.tab; editing = {}; draft = null; render(); return; }
+    if ((el = T("[data-sel]"))) { selectPerson(el.dataset.sel); return; }
+    if ((el = T("[data-chip]"))) { const v = el.dataset.v; if (el.dataset.chip === "req") reqFilter = v; else if (el.dataset.chip === "cli") cliFilter = v; else arcFilter = v; render(); return; }
+    if (T("[data-newclient]")) { draft = {}; sel = null; editing = {}; render(); return; }
+    if (T("[data-canceldraft]")) { draft = null; render(); return; }
+    if ((el = T("[data-confirm]"))) {
+      const r = DB.inquiries.find((x) => x.id === el.dataset.confirm);
+      const fmt = F.milabrownclients[3].o.some(([v]) => v && v === r.format) ? r.format : null;
+      draft = { name: r.name, email: r.email, phone: r.phone, format: fmt, modalities: r.modalities, notes: r.goal ? "Would like to feel: " + r.goal + "\n\n" : "", _from: r.id };
+      tab = "clients"; sel = null; editing = {}; render(); window.scrollTo({ top: 0 }); return;
+    }
+    if ((el = T("[data-addopt]"))) {
+      const fs = $(el.dataset.addopt), inp = fs.querySelector(".add-row input"), v = inp.value.replace(/,/g, " ").trim();
+      if (!v) return;
+      if (![...fs.querySelectorAll(".checks input")].some((x) => x.value === v)) fs.querySelector(".checks").insertAdjacentHTML("beforeend", `<label class="check"><input type="checkbox" value="${esc(v)}" checked> ${esc(v)}</label>`);
+      inp.value = ""; return;
+    }
+    if ((el = T("[data-copy]"))) { const v = el.dataset.copy; try { await navigator.clipboard.writeText(v); toast("Email copied"); } catch { toast(v); } return; }
+    if (T("[data-invite]") && DEMO) { e.preventDefault(); toast("Opens Supabase → Authentication → Users → Invite user."); return; }
+    if ((el = T("[data-edit]"))) { editing[el.dataset.edit] = DB[el.dataset.edit].find((x) => x.id === el.dataset.id); render(); const f = document.querySelector(`[data-form="${el.dataset.edit}"]`); if (f) f.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
+    if ((el = T("[data-cancel]"))) { editing[el.dataset.cancel] = null; render(); return; }
+    if ((el = T("[data-archive]"))) {
+      const table = el.dataset.archive, r = DB[table].find((x) => x.id === el.dataset.id); el.disabled = true;
+      try { await write(table, r.id, { archived: !r.archived }); if (!DEMO) await loadAll(); if (table === "milabrownclients" && !r.archived) sel = null; toast(r.archived ? "Restored" : "Archived"); render(); }
+      catch { el.disabled = false; toast("Couldn't update. Please try again."); } return;
+    }
+    if ((el = T("[data-del]"))) {
+      if (el.dataset.armed !== "1") { el.dataset.armed = "1"; el.textContent = "Confirm delete"; setTimeout(() => { if (el.isConnected) { el.dataset.armed = ""; el.textContent = "Delete"; } }, 4000); return; }
+      const p = current();
+      try { await remove(el.dataset.del, el.dataset.id, p && p.prof && p.prof.id); if (el.dataset.del === "milabrownclients") { sel = null; render(); } } catch { toast("Couldn't delete. Please try again."); } return;
+    }
+    if ((el = T("[data-open]"))) { if (DEMO) { toast("Opens the file in the live admin."); return; } const w = window.open("", "_blank"); const u = await fileUrl(el.dataset.bucket, el.dataset.open); if (u && w) w.location = u; else if (w) w.close(); return; }
+  });
+  document.addEventListener("change", async (e) => {
+    const cb = e.target.closest("[data-contacted]"); if (!cb) return;
+    const r = DB.inquiries.find((x) => x.id === cb.dataset.contacted); cb.disabled = true;
+    try { await write("inquiries", r.id, { contacted: cb.checked }); r.contacted = cb.checked; render(); }
+    catch { cb.checked = !cb.checked; cb.disabled = false; toast("Couldn't update. Please try again."); }
+  });
+  document.addEventListener("input", (e) => {
+    const s = e.target.closest("[data-search]"); if (!s) return;
+    qs[s.dataset.search] = s.value; const pos = s.selectionStart; render();
+    const again = document.querySelector(`[data-search="${s.dataset.search}"]`); if (again) { again.focus(); again.setSelectionRange(pos, pos); }
+  });
+  document.addEventListener("submit", async (e) => {
+    const f = e.target.closest("[data-form]"); if (!f) return;
+    e.preventDefault();
+    const btn = f.querySelector('[type="submit"]'); btn.disabled = true;
+    try {
+      if (f.dataset.form === "milabrownclients") {
+        const { out } = readForm("milabrownclients");
+        const p = draft ? null : current();
+        const from = draft && draft._from;
+        const saved = await write("milabrownclients", p && p.crm && p.crm.id, out);
+        if (from) { try { await write("inquiries", from, { contacted: true }); } catch {} }
+        draft = null;
+        if (!DEMO) await loadAll();
+        sel = key(saved.email) || "c:" + saved.id;
+        toast("Client saved"); await selectPerson(sel);
+      } else {
+        const p = current();
+        await save(f.dataset.form, p && p.prof && p.prof.id);
+      }
+    } catch (err) { toast(err.message && err.message.length < 120 ? err.message : "Couldn't save. Please try again."); btn.disabled = false; }
+  });
+
+  // ---------- auth ----------
+  async function boot(user) {
+    if (!DEMO) {
+      const { data } = await sb.from("admins").select("user_id").eq("user_id", user.id).maybeSingle();
+      if (!data) { $("login").hidden = false; $("app").hidden = true; $("login-err").textContent = "This account doesn't have admin access."; $("login-err").hidden = false; return; }
+    }
+    try { await loadAll(); } catch { toast("Couldn't load data. Please refresh."); }
+    $("login").hidden = true; $("app").hidden = false; render();
+  }
+  if (DEMO) {
+    $("demo-flag").hidden = false; $("login").hidden = false; $("login-form").hidden = true; $("demo-enter").hidden = false;
+    $("demo-enter").addEventListener("click", () => boot());
+  } else {
+    let booted = false;
+    const go = (s) => { if (s && !booted) { booted = true; boot(s.user); } else if (!s) { $("login").hidden = false; $("app").hidden = true; } };
+    sb.auth.getSession().then(({ data }) => go(data.session));
+    sb.auth.onAuthStateChange((_e, s) => go(s));
+  }
+  $("login-form").addEventListener("submit", async (e) => {
+    e.preventDefault(); e.stopPropagation();
+    const email = $("login-email").value.trim(), pass = $("login-pass").value;
+    $("login-err").hidden = true; $("login-ok").hidden = true; $("login-btn").disabled = true;
+    if (pass) {
+      const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+      if (error) { $("login-err").textContent = /invalid/i.test(error.message) ? "Email or password is incorrect." : "Couldn't sign in. Please try again."; $("login-err").hidden = false; }
+      $("login-pass").value = "";
+    } else {
+      const r = await sendLink(email);
+      $("login-ok").hidden = !r.ok; $("login-err").hidden = r.ok; if (!r.ok) $("login-err").textContent = r.msg;
+    }
+    $("login-btn").disabled = false;
+  });
+  $("logout").addEventListener("click", async () => { if (DEMO) location.reload(); else { await sb.auth.signOut(); location.reload(); } });
+})();
+</script>
+</body>
+</html>

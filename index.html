@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sanctuary · Mila Brown</title>
+<meta name="description" content="Sanctuary: the private client space of Mila Brown. Your protocols, sessions, retreats and practice library.">
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#5b4b88">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&family=Jost:wght@300;400;500&display=swap&subset=cyrillic">
+<link rel="stylesheet" href="sanctuary.css">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js"></script>
+<script src="common.js"></script>
+</head>
+<body>
+
+<div class="demo-flag" id="demo-flag" hidden></div>
+
+<!-- Login -->
+<section class="login" id="login" hidden>
+  <div class="login-card">
+    <div class="lang-switch" role="group" aria-label="Language"><button type="button" data-setlang="en">EN</button><button type="button" data-setlang="ru">RU</button></div>
+    <div id="login-flower"></div>
+    <p class="eyebrow" data-i="loginEyebrow"></p>
+    <h1>Sanctuary</h1>
+    <p class="muted" data-i="loginLead"></p>
+    <form id="login-form" novalidate>
+      <label for="login-email" data-i="yourEmail"></label>
+      <input id="login-email" type="email" autocomplete="email" required placeholder="you@example.com">
+      <button class="btn" id="login-btn" type="submit" data-i="sendLink"></button>
+    </form>
+    <p class="note" id="login-ok" role="status" hidden></p>
+    <p class="note err" id="login-err" role="alert" hidden></p>
+    <p class="small muted"><span data-i="noPassword"></span> <a href="https://milabrown.pro/#contact" data-i="getInTouch"></a></p>
+    <button class="btn ghost" id="demo-enter" type="button" hidden data-i="openPreview"></button>
+  </div>
+</section>
+
+<!-- App -->
+<div id="app" hidden>
+  <header class="top">
+    <div class="in">
+      <a class="brand" href="#home" data-go="home">Sanctuary<small>Mila Brown</small></a>
+      <div class="who"><button class="who-btn" type="button" data-go="profile" id="who-name"></button><button class="btn ghost sm" id="logout" type="button" data-i="signOut"></button></div>
+    </div>
+  </header>
+  <div class="shell">
+    <nav class="side" aria-label="Sections" id="nav"></nav>
+    <main id="view" tabindex="-1"></main>
+  </div>
+</div>
+
+<script>
+(function () {
+  const { DEMO, sb, esc, fmtDate, today, toast, fileUrl, flower, sendLink, DEMO_DATA, setLang, getLang } = S;
+  const $ = (id) => document.getElementById(id);
+
+  // ---------- interface text, English and Russian ----------
+  const TXT = {
+    en: {
+      demo: "Preview with sample data · nothing here is real", loginEyebrow: "Mila Brown · client space",
+      loginLead: "Your protocols, sessions, retreats and practice library in one place.", yourEmail: "Your email",
+      sendLink: "Send me a sign-in link", sending: "Sending…", noPassword: "No password needed. Not a client yet?", getInTouch: "Get in touch",
+      openPreview: "Open the preview", linkSent: (e) => `Check your inbox. We sent a sign-in link to <b>${e}</b>. Open it on this device.`,
+      badEmail: "Please enter a valid email address.", loadFail: "We couldn't load your space. Please refresh the page, or sign in again.",
+      signOut: "Sign out", saveFail: "Couldn't save. Please try again.", fileDemo: "In the live portal this opens the file.",
+      nav: { home: "Home", modalities: "Modalities", services: "My services", protocols: "My protocols", retreats: "Retreats", library: "Library", profile: "My profile" },
+      welcomeEyebrow: "Welcome to your Sanctuary", hello: "Hello", welcomeText: "Everything from our work together lives here: your protocols, past sessions and retreats, plus mantras, guides and recordings for your practice.",
+      activeProtocols: (n) => `active protocol${n === 1 ? "" : "s"}`, sessionsWith: (n) => `session${n === 1 ? "" : "s"} with Mila`, retreatsN: (n) => `retreat${n === 1 ? "" : "s"}`, libItems: "library items",
+      currentProtocol: "Current protocol", openProtocol: "Open protocol", noActive: "No active protocol", noActiveText: "When Mila prepares your personal plan, it will appear here.",
+      lastSession: "Last session", allSessions: "All sessions", practice: "Practice", yourLibrary: "Your library", libraryText: "Mantras, guides and webinar recordings for every client.", openLibrary: "Open library",
+      done: (d, n) => `${d} of ${n} done`,
+      modEyebrow: "What Mila offers", modText: "Every practice Mila offers. Ask about any of them at your next session or book directly.", modEmpty: "Modalities will appear here soon.", bookAsk: "Book or ask",
+      svcEyebrow: "Your history", svcText: "Sessions you've had with Mila, with her notes.", svcEmpty: "Your sessions will be listed here after your first visit.",
+      protEyebrow: "Personal", protText: "Your individual plans from Mila. Tick items off as you go; Mila sees your progress.", protEmpty: "No protocols yet. After your consultation, Mila will add your personal plan here.",
+      started: "Started", openPdf: "Open protocol PDF", protocol: "Protocol",
+      status: { active: "active", completed: "completed", paused: "paused", attended: "attended", booked: "booked", cancelled: "cancelled" },
+      myRetreats: "My retreats", retEmpty: "Your retreats will be listed here.", upcoming: "Upcoming & available", anyDate: "Book any date", learnBook: "Learn more & book", retNone: "New retreat dates will appear here.", retreat: "Retreat",
+      libEyebrow: "For every client", libText: "Mantras, guides and recordings Mila shares with all her clients.", libEmpty: "Mila will add mantras, guides and webinars here soon.",
+      kinds: { all: "All", mantra: "Mantras", pdf: "Guides & PDFs", webinar: "Webinars", audio: "Audio", link: "Links" },
+      kind1: { mantra: "Mantra", pdf: "Guide · PDF", webinar: "Webinar", audio: "Audio", link: "Link" }, open: "Open", listen: "Listen", watch: "Watch", openLink: "Open link",
+      profEyebrow: "Settings", profText: "Your details and the language of your Sanctuary. Mila sees your name, phone and contact preference.",
+      details: "My details", fullName: "Full name", phone: "Phone", contactPref: "How Mila should contact you",
+      contacts: { "": "No preference", email: "Email", phone: "Phone call", whatsapp: "WhatsApp", telegram: "Telegram" },
+      language: "Language", langNote: "Changes the language of the portal. Your protocols and notes stay as Mila wrote them.",
+      save: "Save changes", saved: "Saved", loginEmail: "Login email", changeEmail: "Change email", newEmail: "New email",
+      emailNote: "We'll send a confirmation link to the new address. Your login changes after you open it.", emailSent: "Confirmation sent. Check both inboxes.", emailFail: "Couldn't change the email. Please try again.",
+      emailDemo: "In the live portal a confirmation link is sent.", nameTooLong: "Please keep the name under 120 characters.",
+    },
+    ru: {
+      demo: "Предпросмотр с примерами · данные не настоящие", loginEyebrow: "Мила Браун · пространство клиента",
+      loginLead: "Ваши протоколы, сессии, ретриты и библиотека практик в одном месте.", yourEmail: "Ваш email",
+      sendLink: "Прислать ссылку для входа", sending: "Отправляем…", noPassword: "Пароль не нужен. Ещё не клиент?", getInTouch: "Напишите Миле",
+      openPreview: "Открыть предпросмотр", linkSent: (e) => `Проверьте почту. Мы отправили ссылку для входа на <b>${e}</b>. Откройте её на этом устройстве.`,
+      badEmail: "Введите корректный email.", loadFail: "Не удалось загрузить ваше пространство. Обновите страницу или войдите снова.",
+      signOut: "Выйти", saveFail: "Не удалось сохранить. Попробуйте ещё раз.", fileDemo: "В рабочем портале здесь откроется файл.",
+      nav: { home: "Главная", modalities: "Практики", services: "Мои сессии", protocols: "Мои протоколы", retreats: "Ретриты", library: "Библиотека", profile: "Мой профиль" },
+      welcomeEyebrow: "Добро пожаловать в ваш Sanctuary", hello: "Здравствуйте", welcomeText: "Здесь собрано всё о нашей совместной работе: ваши протоколы, прошедшие сессии и ретриты, а также мантры, гайды и записи для практики.",
+      activeProtocols: () => "активные протоколы", sessionsWith: () => "сессии с Милой", retreatsN: () => "ретриты", libItems: "материалы в библиотеке",
+      currentProtocol: "Текущий протокол", openProtocol: "Открыть протокол", noActive: "Нет активного протокола", noActiveText: "Когда Мила подготовит ваш личный план, он появится здесь.",
+      lastSession: "Последняя сессия", allSessions: "Все сессии", practice: "Практика", yourLibrary: "Ваша библиотека", libraryText: "Мантры, гайды и записи вебинаров для всех клиентов.", openLibrary: "Открыть библиотеку",
+      done: (d, n) => `выполнено ${d} из ${n}`,
+      modEyebrow: "Что предлагает Мила", modText: "Все практики, с которыми работает Мила. Спросите о любой на следующей сессии или запишитесь.", modEmpty: "Практики скоро появятся здесь.", bookAsk: "Записаться или спросить",
+      svcEyebrow: "Ваша история", svcText: "Сессии с Милой и её заметки.", svcEmpty: "Ваши сессии появятся здесь после первой встречи.",
+      protEyebrow: "Лично для вас", protText: "Ваши индивидуальные планы от Милы. Отмечайте выполненное — Мила видит ваш прогресс.", protEmpty: "Протоколов пока нет. После консультации Мила добавит сюда ваш личный план.",
+      started: "Начало", openPdf: "Открыть протокол (PDF)", protocol: "Протокол",
+      status: { active: "активен", completed: "завершён", paused: "на паузе", attended: "посещён", booked: "забронирован", cancelled: "отменён" },
+      myRetreats: "Мои ретриты", retEmpty: "Здесь будут ваши ретриты.", upcoming: "Ближайшие и доступные", anyDate: "Любая дата", learnBook: "Подробнее и запись", retNone: "Новые даты ретритов появятся здесь.", retreat: "Ретрит",
+      libEyebrow: "Для всех клиентов", libText: "Мантры, гайды и записи, которыми Мила делится со всеми клиентами.", libEmpty: "Скоро Мила добавит сюда мантры, гайды и вебинары.",
+      kinds: { all: "Все", mantra: "Мантры", pdf: "Гайды и PDF", webinar: "Вебинары", audio: "Аудио", link: "Ссылки" },
+      kind1: { mantra: "Мантра", pdf: "Гайд · PDF", webinar: "Вебинар", audio: "Аудио", link: "Ссылка" }, open: "Открыть", listen: "Слушать", watch: "Смотреть", openLink: "Открыть ссылку",
+      profEyebrow: "Настройки", profText: "Ваши данные и язык вашего пространства. Мила видит ваше имя, телефон и удобный способ связи.",
+      details: "Мои данные", fullName: "Имя и фамилия", phone: "Телефон", contactPref: "Как Миле с вами связаться",
+      contacts: { "": "Без предпочтений", email: "Email", phone: "Звонок", whatsapp: "WhatsApp", telegram: "Telegram" },
+      language: "Язык", langNote: "Меняет язык портала. Протоколы и заметки остаются в том виде, как их написала Мила.",
+      save: "Сохранить", saved: "Сохранено", loginEmail: "Email для входа", changeEmail: "Изменить email", newEmail: "Новый email",
+      emailNote: "Мы отправим ссылку для подтверждения на новый адрес. Email для входа изменится после того, как вы её откроете.", emailSent: "Подтверждение отправлено. Проверьте обе почты.", emailFail: "Не удалось изменить email. Попробуйте ещё раз.",
+      emailDemo: "В рабочем портале будет отправлена ссылка для подтверждения.", nameTooLong: "Имя должно быть короче 120 символов.",
+    },
+  };
+  const T = () => TXT[getLang()];
+
+  const D = { profile: null, modalities: [], services: [], protocols: [], attendance: [], retreats: [], library: [] };
+  let current = "home", libFilter = "all";
+  $("login-flower").innerHTML = flower("flower");
+
+  const ICONS = {
+    home: '<path d="M4 11 12 4l8 7v9h-5v-6H9v6H4z"/>',
+    modalities: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="8" r="4"/><circle cx="12" cy="16" r="4"/>',
+    services: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/>',
+    protocols: '<path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4M10 12l2 2 4-4"/>',
+    retreats: '<path d="M3 20h18M6 20l6-14 6 14M9.5 13h5"/>',
+    library: '<path d="M5 4h4v16H5zM10 4h4v16h-4zM15.5 4.5l3.8 1-3.8 14.6-3.6-1"/>',
+    profile: '<circle cx="12" cy="8" r="4"/><path d="M4 20a8 8 0 0 1 16 0"/>',
+  };
+
+  // Static text on the page follows the language
+  function applyStatic() {
+    const t = T();
+    document.querySelectorAll("[data-i]").forEach((el) => { const v = t[el.dataset.i]; if (typeof v === "string") el.textContent = v; });
+    document.querySelectorAll("[data-setlang]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.setlang === getLang())));
+    $("demo-flag").textContent = t.demo;
+    const counts = { modalities: D.modalities.length, services: D.services.length, protocols: D.protocols.length, retreats: D.attendance.length, library: D.library.length };
+    $("nav").innerHTML = Object.keys(ICONS).map((k) => `<button type="button" data-go="${k}" aria-current="${k === current ? "page" : "false"}"${k === "profile" ? ' class="nav-profile"' : ""}><svg viewBox="0 0 24 24">${ICONS[k]}</svg>${t.nav[k]}${counts[k] ? `<span class="count">${counts[k]}</span>` : ""}</button>`).join("");
+  }
+  applyStatic();
+
+  document.addEventListener("click", (e) => {
+    const l = e.target.closest("[data-setlang]");
+    if (l) { setLang(l.dataset.setlang); applyStatic(); if (!$("app").hidden) go(current); }
+  });
+
+  // ---------- auth ----------
+  if (DEMO) {
+    $("demo-flag").hidden = false; $("login").hidden = false; $("demo-enter").hidden = false; $("login-form").hidden = true;
+    $("demo-enter").addEventListener("click", () => start(DEMO_DATA));
+  } else {
+    sb.auth.onAuthStateChange((_e, session) => { if (session) load(session.user); else showLogin(); });
+    sb.auth.getSession().then(({ data }) => { if (data.session) load(data.session.user); else showLogin(); });
+  }
+  function showLogin() { $("app").hidden = true; $("login").hidden = false; }
+
+  $("login-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const t = T(), email = $("login-email").value.trim();
+    $("login-err").hidden = true; $("login-ok").hidden = true;
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { $("login-err").textContent = t.badEmail; $("login-err").hidden = false; return; }
+    $("login-btn").disabled = true; $("login-btn").textContent = t.sending;
+    const r = await sendLink(email);
+    $("login-btn").disabled = false; $("login-btn").textContent = t.sendLink;
+    if (r.ok) { $("login-ok").innerHTML = t.linkSent(esc(email)); $("login-ok").hidden = false; }
+    else { $("login-err").textContent = r.msg; $("login-err").hidden = false; }
+  });
+  $("logout").addEventListener("click", async () => { if (DEMO) location.reload(); else { await sb.auth.signOut(); location.hash = ""; } });
+
+  let loading = false;
+  async function load(user) {
+    if (loading || D.profile) return; loading = true;
+    try {
+      const q = await Promise.all([
+        sb.from("profiles").select("id,email,full_name,phone,language,contact_pref").eq("id", user.id).maybeSingle(),
+        sb.from("modalities").select("*").eq("active", true).order("sort"),
+        sb.from("client_services").select("*").order("service_date", { ascending: false }),
+        sb.from("protocols").select("*, protocol_tasks(*)").order("created_at", { ascending: false }),
+        sb.from("retreat_attendance").select("*, retreats(title,location)").order("attended_on", { ascending: false }),
+        sb.from("retreats").select("*").eq("published", true).order("starts_on", { ascending: true, nullsFirst: true }),
+        sb.from("library_items").select("*").eq("published", true).order("created_at", { ascending: false }),
+      ]);
+      const bad = q.find((r) => r.error);
+      if (bad) throw bad.error;
+      start({ profile: q[0].data || { id: user.id, email: user.email, language: getLang() }, modalities: q[1].data, services: q[2].data, protocols: q[3].data,
+        attendance: q[4].data, retreats: q[5].data, library: q[6].data });
+    } catch (err) {
+      $("login").hidden = false; $("app").hidden = true;
+      $("login-err").textContent = T().loadFail; $("login-err").hidden = false;
+    } finally { loading = false; }
+  }
+
+  function start(data) {
+    Object.assign(D, JSON.parse(JSON.stringify(data)));
+    D.protocols.forEach((p) => (p.protocol_tasks || []).sort((a, b) => a.sort - b.sort));
+    if (D.profile.language) setLang(D.profile.language);
+    $("login").hidden = true; $("app").hidden = false;
+    whoName();
+    go((location.hash || "#home").slice(1));
+  }
+  function whoName() { $("who-name").textContent = D.profile.full_name || D.profile.email || ""; }
+
+  // ---------- navigation ----------
+  const VIEWS = { home, modalities, services, protocols, retreats, library, profile };
+  function go(name) {
+    if (!VIEWS[name]) name = "home";
+    current = name;
+    applyStatic();
+    $("view").innerHTML = VIEWS[name]();
+    const act = document.querySelector('#nav [aria-current="page"]'); if (act && act.scrollIntoView) act.scrollIntoView({ block: "nearest", inline: "nearest" });
+    if (location.hash !== "#" + name) history.replaceState(null, "", "#" + name);
+    window.scrollTo({ top: 0 });
+  }
+  document.addEventListener("click", (e) => {
+    const g = e.target.closest("[data-go]");
+    if (g) { e.preventDefault(); go(g.dataset.go); $("view").focus({ preventScroll: true }); return; }
+    const f = e.target.closest("[data-file]");
+    if (f) { e.preventDefault(); openFile(f.dataset.bucket, f.dataset.file); return; }
+    const ch = e.target.closest("[data-lib]");
+    if (ch) { libFilter = ch.dataset.lib; go("library"); }
+  });
+  window.addEventListener("hashchange", () => { if (!$("app").hidden) go(location.hash.slice(1)); });
+
+  async function openFile(bucket, path) {
+    if (DEMO) { toast(T().fileDemo); return; }
+    const w = window.open("", "_blank");
+    const url = await fileUrl(bucket, path);
+    if (url && w) w.location = url; else if (url) location.href = url; else if (w) w.close();
+  }
+
+  // ---------- checklist ----------
+  document.addEventListener("change", async (e) => {
+    const box = e.target.closest("[data-task]");
+    if (!box) return;
+    const p = D.protocols.find((x) => x.id === box.dataset.protocol);
+    const t = p && p.protocol_tasks.find((x) => x.id === box.dataset.task);
+    if (!t) return;
+    t.done = box.checked;
+    box.closest("li").classList.toggle("done", t.done);
+    const bar = document.querySelector(`[data-bar="${p.id}"]`); if (bar) bar.innerHTML = progress(p);
+    if (DEMO) return;
+    const { error } = await sb.from("protocol_tasks").update({ done: t.done }).eq("id", t.id);
+    if (error) { t.done = !t.done; box.checked = t.done; box.closest("li").classList.toggle("done", t.done); toast(T().saveFail); }
+  });
+
+  // ---------- profile forms ----------
+  document.addEventListener("submit", async (e) => {
+    const t = T();
+    if (e.target.id === "profile-form") {
+      e.preventDefault();
+      const btn = e.target.querySelector('[type="submit"]');
+      const v = { full_name: $("pf-name").value.trim(), phone: $("pf-phone").value.trim(), language: $("pf-lang").value, contact_pref: $("pf-contact").value };
+      if (v.full_name.length > 120) { toast(t.nameTooLong); return; }
+      btn.disabled = true;
+      if (!DEMO) {
+        const { error } = await sb.rpc("update_my_profile", { p_full_name: v.full_name, p_phone: v.phone, p_language: v.language, p_contact_pref: v.contact_pref });
+        if (error) { btn.disabled = false; toast(t.saveFail); return; }
+      }
+      Object.assign(D.profile, v);
+      setLang(v.language); whoName(); go("profile"); toast(T().saved);
+    }
+    if (e.target.id === "email-form") {
+      e.preventDefault();
+      const email = $("pf-email").value.trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast(t.badEmail); return; }
+      if (DEMO) { toast(t.emailDemo); return; }
+      const { error } = await sb.auth.updateUser({ email }, { emailRedirectTo: location.origin + location.pathname + "#profile" });
+      toast(error ? t.emailFail : t.emailSent);
+      if (!error) $("pf-email").value = "";
+    }
+  });
+
+  // ---------- views ----------
+  const head = (eyebrow, title, text) => `<div class="view-head"><p class="eyebrow">${eyebrow}</p><h2>${title}</h2>${text ? `<p class="muted">${text}</p>` : ""}</div>`;
+  const empty = (text) => `<div class="empty">${text}</div>`;
+  const st = (s) => esc(T().status[s] || s);
+  function progress(p) {
+    const n = (p.protocol_tasks || []).length, d = (p.protocol_tasks || []).filter((t) => t.done).length;
+    if (!n) return "";
+    return `<div class="progress" aria-label="${T().done(d, n)}"><i style="width:${Math.round((d / n) * 100)}%"></i></div><p class="small muted">${T().done(d, n)}</p>`;
+  }
+
+  function home() {
+    const t = T(), name = (D.profile.full_name || "").split(" ")[0];
+    const active = D.protocols.filter((p) => p.status === "active");
+    const last = D.services[0];
+    return `<section class="welcome">${flower("flower")}<p class="eyebrow" style="color:#cfc4d6">${t.welcomeEyebrow}</p>
+      <h2>${t.hello}${name ? ", " + esc(name) : ""}</h2><p>${t.welcomeText}</p></section>
+      <div class="stat-row">
+        <div class="stat"><b>${active.length}</b><span>${t.activeProtocols(active.length)}</span></div>
+        <div class="stat"><b>${D.services.length}</b><span>${t.sessionsWith(D.services.length)}</span></div>
+        <div class="stat"><b>${D.attendance.length}</b><span>${t.retreatsN(D.attendance.length)}</span></div>
+        <div class="stat"><b>${D.library.length}</b><span>${t.libItems}</span></div>
+      </div>
+      <div class="grid">
+        ${active.length ? active.map((p) => `<article class="card"><span class="tag">${t.currentProtocol}</span><h3>${esc(p.title)}</h3>${p.phase ? `<p class="muted">${esc(p.phase)}</p>` : ""}<div data-bar="${p.id}">${progress(p)}</div><div class="actions"><button class="btn sm" type="button" data-go="protocols">${t.openProtocol}</button></div></article>`).join("")
+          : `<article class="card"><span class="tag">${t.nav.protocols}</span><h3>${t.noActive}</h3><p class="muted">${t.noActiveText}</p></article>`}
+        ${last ? `<article class="card"><span class="tag">${t.lastSession} · ${fmtDate(last.service_date)}</span><h3>${esc(last.modality)}</h3>${last.notes ? `<p class="muted">${esc(last.notes)}</p>` : ""}<div class="actions"><button class="btn ghost sm" type="button" data-go="services">${t.allSessions}</button></div></article>` : ""}
+        <article class="card"><span class="tag">${t.practice}</span><h3>${t.yourLibrary}</h3><p class="muted">${t.libraryText}</p><div class="actions"><button class="btn ghost sm" type="button" data-go="library">${t.openLibrary}</button></div></article>
+      </div>`;
+  }
+
+  function modalities() {
+    const t = T();
+    if (!D.modalities.length) return head(t.modEyebrow, t.nav.modalities) + empty(t.modEmpty);
+    return head(t.modEyebrow, t.nav.modalities, t.modText) +
+      `<div class="grid">${D.modalities.map((m) => `<article class="card">${m.category ? `<span class="tag">${esc(m.category)}</span>` : ""}<h3>${esc(m.title)}</h3>
+        ${m.description ? `<p class="muted">${esc(m.description)}</p>` : ""}
+        ${m.duration || m.price ? `<p class="small">${[m.duration, m.price].filter(Boolean).map(esc).join(" · ")}</p>` : ""}
+        ${m.booking_url ? `<div class="actions"><a class="btn ghost sm" href="${esc(m.booking_url)}" target="_blank" rel="noopener">${t.bookAsk}</a></div>` : ""}</article>`).join("")}</div>`;
+  }
+
+  function services() {
+    const t = T(), h = head(t.svcEyebrow, t.nav.services, t.svcText);
+    if (!D.services.length) return h + empty(t.svcEmpty);
+    return h + `<div class="timeline">${D.services.map((s) => `<article class="row"><p class="date">${fmtDate(s.service_date)}</p><div><h3>${esc(s.modality)}</h3>${s.notes ? `<p class="muted">${esc(s.notes)}</p>` : ""}</div><span></span></article>`).join("")}</div>`;
+  }
+
+  function protocols() {
+    const t = T(), h = head(t.protEyebrow, t.nav.protocols, t.protText);
+    if (!D.protocols.length) return h + empty(t.protEmpty);
+    return h + `<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(min(320px,100%),1fr))">${D.protocols.map((p) => `<article class="card">
+      <div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><span class="tag">${esc(p.phase || t.protocol)}</span><span class="pill ${esc(p.status)}">${st(p.status)}</span></div>
+      <h3>${esc(p.title)}</h3>${p.start_date ? `<p class="small muted">${t.started} ${fmtDate(p.start_date)}</p>` : ""}
+      ${p.summary ? `<p class="muted">${esc(p.summary)}</p>` : ""}
+      <div data-bar="${p.id}">${progress(p)}</div>
+      ${(p.protocol_tasks || []).length ? `<ul class="tasks">${p.protocol_tasks.map((x) => `<li class="${x.done ? "done" : ""}"><label><input type="checkbox" data-task="${x.id}" data-protocol="${p.id}" ${x.done ? "checked" : ""}><span>${esc(x.text)}</span></label></li>`).join("")}</ul>` : ""}
+      ${p.file_path ? `<div class="actions"><a class="btn sm" href="#" data-bucket="protocols" data-file="${esc(p.file_path)}">${t.openPdf}</a></div>` : ""}
+    </article>`).join("")}</div>`;
+  }
+
+  function retreats() {
+    const t = T();
+    const mine = D.attendance.length ? `<div class="timeline">${D.attendance.map((a) => `<article class="row"><p class="date">${fmtDate(a.attended_on)}</p><div><h3>${esc(a.title || (a.retreats && a.retreats.title) || t.retreat)}</h3>${a.notes ? `<p class="muted">${esc(a.notes)}</p>` : ""}</div><span class="pill ${esc(a.status)}">${st(a.status)}</span></article>`).join("")}</div>`
+      : empty(t.retEmpty);
+    const offer = D.retreats.filter((r) => !r.ends_on || r.ends_on >= today());
+    return head(t.nav.retreats, t.nav.retreats) + `<h3 style="font-size:1.6rem;margin:4px 0 12px">${t.myRetreats}</h3>${mine}
+      <h3 style="font-size:1.6rem;margin:30px 0 12px">${t.upcoming}</h3>
+      ${offer.length ? `<div class="grid">${offer.map((r) => `<article class="card"><span class="tag">${r.starts_on ? fmtDate(r.starts_on) + (r.ends_on && r.ends_on !== r.starts_on ? " – " + fmtDate(r.ends_on) : "") : t.anyDate}</span><h3>${esc(r.title)}</h3>
+        ${r.format ? `<p class="small">${esc(r.format)}</p>` : ""}${r.description ? `<p class="muted">${esc(r.description)}</p>` : ""}${r.price ? `<p class="small"><b>${esc(r.price)}</b></p>` : ""}
+        ${r.signup_url ? `<div class="actions"><a class="btn sm" href="${esc(r.signup_url)}" target="_blank" rel="noopener">${t.learnBook}</a></div>` : ""}</article>`).join("")}</div>` : empty(t.retNone)}`;
+  }
+
+  function library() {
+    const t = T();
+    const kinds = Object.keys(t.kinds).filter((k) => k === "all" || D.library.some((x) => x.kind === k));
+    const items = D.library.filter((x) => libFilter === "all" || x.kind === libFilter);
+    const h = head(t.libEyebrow, t.nav.library, t.libText);
+    if (!D.library.length) return h + empty(t.libEmpty);
+    return h + `<div class="filters" role="group" aria-label="${t.nav.library}">${kinds.map((k) => `<button class="chip" type="button" data-lib="${k}" aria-pressed="${k === libFilter}">${t.kinds[k]}</button>`).join("")}</div>
+      <div class="grid">${items.map((x) => `<article class="card"><span class="tag">${t.kind1[x.kind] || ""}</span><h3>${esc(x.title)}</h3>
+        ${x.description ? `<p class="muted">${esc(x.description)}</p>` : ""}${x.kind === "mantra" && x.body ? `<p class="mantra">${esc(x.body)}</p>` : ""}
+        <div class="actions">${x.file_path ? `<a class="btn sm" href="#" data-bucket="library" data-file="${esc(x.file_path)}">${x.kind === "audio" ? t.listen : t.open}</a>` : ""}
+        ${x.url ? `<a class="btn ${x.file_path ? "ghost " : ""}sm" href="${esc(x.url)}" target="_blank" rel="noopener">${x.kind === "webinar" ? t.watch : t.openLink}</a>` : ""}</div></article>`).join("")}</div>`;
+  }
+
+  function profile() {
+    const t = T(), p = D.profile;
+    return head(t.profEyebrow, t.nav.profile, t.profText) + `
+      <form class="panel" id="profile-form" novalidate><h3>${t.details}</h3>
+        <div class="fgrid">
+          <label for="pf-name">${t.fullName}<input id="pf-name" autocomplete="name" maxlength="120" value="${esc(p.full_name || "")}"></label>
+          <label for="pf-phone">${t.phone}<input id="pf-phone" type="tel" autocomplete="tel" maxlength="40" value="${esc(p.phone || "")}"></label>
+          <label for="pf-contact">${t.contactPref}<select id="pf-contact">${Object.keys(t.contacts).map((k) => `<option value="${k}" ${(p.contact_pref || "") === k ? "selected" : ""}>${t.contacts[k]}</option>`).join("")}</select></label>
+          <label for="pf-lang">${t.language}<select id="pf-lang"><option value="en" ${getLang() === "en" ? "selected" : ""}>English</option><option value="ru" ${getLang() === "ru" ? "selected" : ""}>Русский</option></select></label>
+          <p class="small muted wide">${t.langNote}</p>
+        </div>
+        <div class="actions"><button class="btn" type="submit">${t.save}</button></div>
+      </form>
+      <form class="panel" id="email-form" novalidate><h3>${t.loginEmail}</h3>
+        <p class="muted">${esc(p.email || "")}</p>
+        <div class="fgrid"><label for="pf-email" class="wide">${t.newEmail}<input id="pf-email" type="email" autocomplete="email"></label></div>
+        <p class="small muted">${t.emailNote}</p>
+        <div class="actions"><button class="btn ghost" type="submit">${t.changeEmail}</button></div>
+      </form>`;
+  }
+})();
+</script>
+</body>
+</html>
