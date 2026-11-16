@@ -85,6 +85,13 @@
   </div>
 </div>
 
+<!-- Request bar (Modalities) -->
+<div class="req-bar" id="req-bar" hidden role="region" aria-live="polite">
+  <div class="req-top"><b id="req-count"></b><button class="linkbtn" type="button" id="req-clear" data-i="reqClear"></button></div>
+  <input id="req-note" type="text" maxlength="500" data-ph="reqNote">
+  <button class="btn" type="button" id="req-send" data-i="reqSend"></button>
+</div>
+
 <script>
 (function () {
   const { DEMO, sb, esc, fmtDate, today, toast, fileUrl, flower, sendLink, DEMO_DATA, setLang, getLang } = S;
@@ -118,6 +125,9 @@
       lastSession: "Last session", allSessions: "All sessions", practice: "Practice", yourLibrary: "Your library", libraryText: "Mantras, guides and webinar recordings for every client.", openLibrary: "Open library",
       done: (d, n) => `${d} of ${n} done`,
       modEyebrow: "What Mila offers", modText: "Every practice Mila offers. Ask about any of them at your next session or book directly.", modEmpty: "Modalities will appear here soon.", bookAsk: "Book or ask",
+      pickHint: "Tap the small circle on any practice you’d like, then send your request to Mila.", pickTitle: "Request", pickLabel: (x) => `Request ${x}`,
+      reqCount: (n) => n === 1 ? "1 practice selected" : `${n} practices selected`, reqNote: "Add a note (optional)", reqSend: "Send request", reqClear: "Clear",
+      reqSent: "Request sent. Mila will be in touch.", reqFail: "Couldn’t send. Please try again.",
       svcEyebrow: "Your history", svcText: "Sessions you've had with Mila, with her notes.", svcEmpty: "Your sessions will be listed here after your first visit.",
       protEyebrow: "Personal", protText: "Your individual plans from Mila. Tick items off as you go; Mila sees your progress.", protEmpty: "No protocols yet. After your consultation, Mila will add your personal plan here.",
       started: "Started", openPdf: "Open protocol PDF", protocol: "Protocol",
@@ -160,6 +170,9 @@
       lastSession: "Последняя сессия", allSessions: "Все сессии", practice: "Практика", yourLibrary: "Ваша библиотека", libraryText: "Мантры, гайды и записи вебинаров для всех клиентов.", openLibrary: "Открыть библиотеку",
       done: (d, n) => `выполнено ${d} из ${n}`,
       modEyebrow: "Что предлагает Мила", modText: "Все практики, с которыми работает Мила. Спросите о любой на следующей сессии или запишитесь.", modEmpty: "Практики скоро появятся здесь.", bookAsk: "Записаться или спросить",
+      pickHint: "Нажмите на маленький кружок на понравившейся практике и отправьте запрос Миле.", pickTitle: "Запросить", pickLabel: (x) => `Запросить: ${x}`,
+      reqCount: (n) => `Выбрано практик: ${n}`, reqNote: "Комментарий (необязательно)", reqSend: "Отправить запрос", reqClear: "Сбросить",
+      reqSent: "Запрос отправлен. Мила свяжется с вами.", reqFail: "Не удалось отправить. Попробуйте ещё раз.",
       svcEyebrow: "Ваша история", svcText: "Сессии с Милой и её заметки.", svcEmpty: "Ваши сессии появятся здесь после первой встречи.",
       protEyebrow: "Лично для вас", protText: "Ваши индивидуальные планы от Милы. Отмечайте выполненное — Мила видит ваш прогресс.", protEmpty: "Протоколов пока нет. После консультации Мила добавит сюда ваш личный план.",
       started: "Начало", openPdf: "Открыть протокол (PDF)", protocol: "Протокол",
@@ -197,6 +210,7 @@
   function applyStatic() {
     const t = T();
     document.querySelectorAll("[data-i]").forEach((el) => { const v = t[el.dataset.i]; if (typeof v === "string") el.textContent = v; });
+    document.querySelectorAll("[data-ph]").forEach((el) => { el.placeholder = t[el.dataset.ph] || ""; });
     document.querySelectorAll("[data-setlang]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.setlang === getLang())));
     $("demo-flag").textContent = t.demo;
     if (typeof setLinkMode === "function" && $("login-btn")) { $("login-btn").textContent = linkMode ? t.sendLink : t.signIn; $("use-link").textContent = linkMode ? t.signIn : t.useLink; }
@@ -382,7 +396,7 @@
     if (!VIEWS[name]) name = "home";
     current = name;
     applyStatic();
-    $("view").innerHTML = VIEWS[name](); addEyes();
+    $("view").innerHTML = VIEWS[name](); addEyes(); reqBar();
     const act = document.querySelector('#nav [aria-current="page"]'); if (act && act.scrollIntoView) act.scrollIntoView({ block: "nearest", inline: "nearest" });
     if (location.hash !== "#" + name) history.replaceState(null, "", "#" + name);
     window.scrollTo({ top: 0 });
@@ -486,11 +500,43 @@
       </div>`;
   }
 
+  // Requests from the Modalities page: tap the small circle on cards, then send
+  const picked = new Set();
+  function reqBar() {
+    const t = T(), bar = $("req-bar"), n = picked.size;
+    bar.hidden = !(n && current === "modalities");
+    if (!n) return;
+    $("req-count").textContent = t.reqCount(n);
+  }
+  document.addEventListener("click", async (e) => {
+    const b = e.target.closest("[data-pick]");
+    if (b) {
+      const id = b.dataset.pick, on = !picked.has(id);
+      on ? picked.add(id) : picked.delete(id);
+      b.setAttribute("aria-pressed", String(on)); b.closest(".card").classList.toggle("picked", on);
+      reqBar(); return;
+    }
+    if (e.target.closest("#req-clear")) { picked.clear(); document.querySelectorAll(".mod-card.picked").forEach((c) => { c.classList.remove("picked"); c.querySelector(".pick").setAttribute("aria-pressed", "false"); }); reqBar(); return; }
+    if (e.target.closest("#req-send")) {
+      const t = T(), btn = $("req-send"), names = D.modalities.filter((m) => picked.has(m.id)).map((m) => m.title);
+      const note = $("req-note").value.trim(), p = D.profile || {};
+      btn.disabled = true; btn.textContent = t.sending;
+      let ok = true;
+      if (!DEMO) {
+        const { error } = await sb.from("inquiries").insert({ name: p.full_name || p.email, email: p.email, phone: p.phone || null, format: "Sanctuary client request", modalities: names.join(", "), goal: note || null });
+        ok = !error;
+      }
+      btn.disabled = false; btn.textContent = t.reqSend;
+      if (!ok) { toast(t.reqFail); return; }
+      picked.clear(); $("req-note").value = ""; toast(t.reqSent); go("modalities");
+    }
+  });
+
   function modalities() {
     const t = T();
     if (!D.modalities.length) return head(t.modEyebrow, t.nav.modalities) + empty(t.modEmpty);
     return head(t.modEyebrow, t.nav.modalities, t.modText) +
-      `<div class="grid">${D.modalities.map((m) => `<article class="card">${m.category ? `<span class="tag">${esc(m.category)}</span>` : ""}<h3>${esc(m.title)}</h3>
+      `<p class="small muted pick-hint">${t.pickHint}</p><div class="grid">${D.modalities.map((m) => `<article class="card mod-card${picked.has(m.id) ? " picked" : ""}"><button type="button" class="pick" data-pick="${esc(m.id)}" aria-pressed="${picked.has(m.id)}" aria-label="${esc(t.pickLabel(m.title))}" title="${esc(t.pickTitle)}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 12.5l4 4 8-9"/></svg></button>${m.category ? `<span class="tag">${esc(m.category)}</span>` : ""}<h3>${esc(m.title)}</h3>
         ${m.description ? `<p class="muted">${esc(m.description)}</p>` : ""}
         ${m.duration || m.price ? `<p class="small">${[m.duration, m.price].filter(Boolean).map(esc).join(" · ")}</p>` : ""}
         ${m.booking_url ? `<div class="actions"><a class="btn ghost sm" href="${esc(m.booking_url)}" target="_blank" rel="noopener">${t.bookAsk}</a></div>` : ""}</article>`).join("")}</div>`;
