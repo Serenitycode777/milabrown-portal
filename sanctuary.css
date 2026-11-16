@@ -227,3 +227,13 @@ main{min-width:0}
 .req-bar .btn{padding:11px 18px;white-space:nowrap}
 @media (max-width:480px){.req-bar{grid-template-columns:1fr}.req-bar .btn{width:100%}}
 #view{padding-bottom:140px}
+/* admin: send email dialog */
+.mail-dlg{border:0;border-radius:22px;padding:0;width:min(620px,calc(100% - 24px));max-height:calc(100dvh - 24px);box-shadow:0 30px 80px -20px rgba(46,37,82,.5);background:#fff;color:var(--ink)}
+.mail-dlg::backdrop{background:rgba(36,29,64,.45);backdrop-filter:blur(3px)}
+.mail-dlg form{display:grid;gap:12px;padding:22px 24px 24px}
+.mail-dlg label{display:grid;gap:6px}
+.mail-dlg textarea{min-height:220px;line-height:1.55}
+.mail-dlg .req-top{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.mail-dlg .actions{display:flex;gap:10px;flex-wrap:wrap}
+.mail-note{margin:0}
+.mail-body{white-space:pre-line;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
