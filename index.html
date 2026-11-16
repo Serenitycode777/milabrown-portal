@@ -12,7 +12,9 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&family=Jost:wght@300;400;500&display=swap&subset=cyrillic">
 <link rel="stylesheet" href="sanctuary.css">
 <script>/* remember invite / password-reset links before the login library reads the address */
-  window.__AUTH_TYPE = new URLSearchParams(location.hash.slice(1)).get("type") || new URLSearchParams(location.search).get("type") || "";</script>
+  (function () { const h = new URLSearchParams(location.hash.slice(1)), q = new URLSearchParams(location.search);
+    window.__AUTH_TYPE = h.get("type") || q.get("type") || "";
+    window.__AUTH_ERR = h.get("error_code") || q.get("error_code") || h.get("error") || q.get("error") || ""; })();</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js"></script>
 <script src="common.js"></script>
 </head>
@@ -88,6 +90,9 @@
   const TXT = {
     en: {
       demo: "Preview with sample data · nothing here is real",
+      pwSame: "This is already your password. Please choose a different one.", pwWeak: "This password is too weak. Use a longer one with letters and numbers.",
+      pwReauth: "For security, please sign out, sign in again with an email link, then set your password.", pwSession: "Your sign-in has expired. Please sign in again and try once more.",
+      linkExpired: "This link has expired or was already used. Use “Forgot password?” below or ask Mila for a new invitation.",
       password: "Password", signIn: "Sign in", signingIn: "Signing in…", forgot: "Forgot password?", useLink: "Email me a sign-in link instead",
       notClient: "Not a client yet?", previewSetPw: "Preview: create password screen",
       badLogin: "Email or password is incorrect. No password yet? Use “Email me a sign-in link instead”.", needPass: "Please enter your password.",
@@ -127,6 +132,9 @@
     },
     ru: {
       demo: "Предпросмотр с примерами · данные не настоящие",
+      pwSame: "Это уже ваш текущий пароль. Выберите другой.", pwWeak: "Пароль слишком простой. Используйте более длинный, с буквами и цифрами.",
+      pwReauth: "Для безопасности выйдите, войдите снова по ссылке из письма и затем задайте пароль.", pwSession: "Сессия истекла. Войдите снова и попробуйте ещё раз.",
+      linkExpired: "Ссылка устарела или уже использована. Нажмите «Забыли пароль?» ниже или попросите Милу прислать новое приглашение.",
       password: "Пароль", signIn: "Войти", signingIn: "Входим…", forgot: "Забыли пароль?", useLink: "Прислать ссылку для входа на email",
       notClient: "Ещё не клиент?", previewSetPw: "Предпросмотр: экран создания пароля",
       badLogin: "Неверный email или пароль. Пароля ещё нет? Нажмите «Прислать ссылку для входа на email».", needPass: "Введите пароль.",
@@ -219,6 +227,14 @@
     $("login-err").hidden = true; $("login-ok").hidden = true;
   }
   const say = (id, html) => { $(id).innerHTML = html; $(id).hidden = false; };
+  function pwError(err) {
+    const t = T(), m = ((err && (err.code || "")) + " " + (err && err.message || "")).toLowerCase();
+    if (m.includes("same_password") || m.includes("different from the old")) return t.pwSame;
+    if (m.includes("weak_password") || m.includes("should contain") || m.includes("weak") || m.includes("pwned")) return t.pwWeak + (err.message ? " (" + err.message + ")" : "");
+    if (m.includes("reauthentication")) return t.pwReauth;
+    if (m.includes("session") || m.includes("jwt") || m.includes("not authenticated")) return t.pwSession;
+    return t.saveFail + (err && err.message ? " (" + err.message + ")" : "");
+  }
   const okEmail = (v) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
 
   if (DEMO) {
@@ -227,7 +243,8 @@
     $("demo-setpw").addEventListener("click", () => { pwMode = "create"; showSetPw(); });
   } else {
     const route = (session) => { if (session && pwMode) showSetPw(); else if (session) load(session.user); else showLogin(); };
-    sb.auth.onAuthStateChange((event, session) => { if (event === "PASSWORD_RECOVERY") pwMode = "reset"; route(session); });
+    sb.auth.onAuthStateChange((event, session) => { if (event === "PASSWORD_RECOVERY") pwMode = "reset"; setTimeout(() => route(session), 0); });
+    if (window.__AUTH_ERR) { history.replaceState(null, "", location.pathname); setTimeout(() => say("login-err", T().linkExpired), 0); }
     sb.auth.getSession().then(({ data }) => route(data.session));
   }
 
@@ -277,7 +294,7 @@
     if (!DEMO) {
       const { data, error } = await sb.auth.updateUser({ password: a });
       btn.disabled = false;
-      if (error) { say("setpw-err", t.saveFail); return; }
+      if (error) { say("setpw-err", esc(pwError(error))); return; }
       pwMode = ""; history.replaceState(null, "", location.pathname); $("pw1").value = $("pw2").value = "";
       toast(t.pwSaved); load(data.user);
     } else { btn.disabled = false; pwMode = ""; toast(t.pwSaved); start(DEMO_DATA); }
@@ -381,7 +398,9 @@
       const a = $("pp1").value, b = $("pp2").value;
       if (a.length < 8) { toast(t.pwShort); return; }
       if (a !== b) { toast(t.pwMismatch); return; }
-      if (!DEMO) { const { error } = await sb.auth.updateUser({ password: a }); if (error) { toast(t.saveFail); return; } }
+      const btn = e.target.querySelector('[type="submit"]'); btn.disabled = true;
+      if (!DEMO) { const { error } = await sb.auth.updateUser({ password: a }); if (error) { btn.disabled = false; const m = $("pp-err"); m.textContent = pwError(error); m.hidden = false; return; } }
+      btn.disabled = false; $("pp-err").hidden = true;
       $("pp1").value = $("pp2").value = ""; toast(t.pwSaved);
     }
     if (e.target.id === "email-form") {
@@ -496,6 +515,7 @@
         <p class="small muted">${t.pwPanelText}</p>
         <div class="fgrid"><label for="pp1">${t.newPassword}<input id="pp1" type="password" autocomplete="new-password" minlength="8"></label>
           <label for="pp2">${t.repeatPassword}<input id="pp2" type="password" autocomplete="new-password" minlength="8"></label></div>
+        <p class="note err" id="pp-err" role="alert" hidden></p>
         <div class="actions"><button class="btn ghost" type="submit">${t.changePassword}</button></div>
       </form>
       <form class="panel" id="email-form" novalidate><h3>${t.loginEmail}</h3>
