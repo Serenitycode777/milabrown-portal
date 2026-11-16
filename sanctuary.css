@@ -203,3 +203,10 @@ main{min-width:0}
   .nav-b .nav-dots i.on{width:18px;background:var(--indigo)}
 }
 @media (prefers-reduced-motion:reduce){.nav-a .nav-arrow svg{animation:none!important}}
+/* password eye */
+.pw-wrap{position:relative;display:block;width:100%}
+.pw-wrap input{padding-right:46px}
+.eye{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:38px;height:38px;border:0;background:none;padding:0;display:grid;place-items:center;cursor:pointer;color:var(--muted,#7a7367);border-radius:10px}
+.eye:hover,.eye:focus-visible{color:var(--indigo)}
+.eye svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.pw-wrap:has(input[hidden]){display:none}
