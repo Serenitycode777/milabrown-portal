@@ -321,3 +321,8 @@ input[type=radio]{width:18px;height:18px;padding:0;accent-color:var(--indigo);fl
 .portal-line{margin:4px 2px 10px}
 .fold .list .item{padding:10px 12px}
 .panel.fold{display:block;gap:0;margin-bottom:12px}
+/* portal: back to admin (only for Mila) */
+.admin-link{background:linear-gradient(120deg,#f0d999,#d9b56a);border-color:#c99a3e;color:#3f3266;box-shadow:none}
+.admin-link:hover{background:#3f3266;border-color:#3f3266;color:#faf2dd}
+.admin-link[hidden]{display:none}
+@media (max-width:560px){.top .who{gap:6px}.top .who .btn.sm{padding:8px 11px;letter-spacing:.06em;font-size:.68rem}.top .brand{font-size:1.1rem;letter-spacing:.08em}}
