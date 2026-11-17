@@ -6,7 +6,13 @@ window.S = (function () {
 
   // Anywhere except the real site (e.g. a preview) runs on sample data, with no login and no network.
   const DEMO = !/(^|\.)milabrown\.pro$/.test(location.hostname);
-  const sb = !DEMO && window.supabase ? window.supabase.createClient(SB_URL, SB_KEY) : null;
+  // The admin keeps its own sign-in, so the portal and the admin open in two tabs don't wait on each other.
+  const IS_ADMIN = location.pathname.startsWith("/admin");
+  const sb = !DEMO && window.supabase ? window.supabase.createClient(SB_URL, SB_KEY, {
+    auth: IS_ADMIN ? { storageKey: "sanctuary-admin-auth" } : {},
+  }) : null;
+  // Never wait forever on the network: after `ms` the promise fails with a "timeout" error.
+  const withTimeout = (p, ms = 20000) => Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(Object.assign(new Error("timeout"), { code: "timeout" })), ms))]);
 
   const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   // Interface language: saved per device until the client's profile loads
@@ -51,15 +57,20 @@ window.S = (function () {
 
   // Login with a one-time email link. Only people Mila has invited can sign in.
   async function sendLink(email) {
-    const { error } = await sb.auth.signInWithOtp({
-      email,
-      options: { shouldCreateUser: false, emailRedirectTo: location.origin + location.pathname },
-    });
+    let error;
+    try {
+      ({ error } = await withTimeout(sb.auth.signInWithOtp({
+        email,
+        options: { shouldCreateUser: false, emailRedirectTo: location.origin + location.pathname },
+      })));
+    } catch (e) { error = e; }
     if (!error) return { ok: true };
     const m = (error.message || "").toLowerCase();
     const ru = lang === "ru";
     if (m.includes("signup") || m.includes("not found") || m.includes("not allowed"))
       return { ok: false, msg: ru ? "Этот email ещё не зарегистрирован. Напишите Миле, чтобы она добавила вас." : "This email isn't registered yet. Please message Mila so she can add you." };
+    if (m.includes("timeout") || m.includes("fetch") || m.includes("network"))
+      return { ok: false, msg: ru ? "Связь медленная. Проверьте интернет и попробуйте ещё раз." : "The connection is slow. Check your internet and try again." };
     if (m.includes("rate") || m.includes("seconds"))
       return { ok: false, msg: ru ? "Ссылка только что отправлена. Подождите минуту, прежде чем запросить новую." : "A link was just sent. Please wait a minute before asking for another." };
     return { ok: false, msg: ru ? "Не удалось отправить ссылку. Проверьте адрес и попробуйте снова." : "We couldn't send the link. Check the email address and try again." };
@@ -111,5 +122,5 @@ window.S = (function () {
     ],
   };
 
-  return { DEMO, sb, esc, fmtDate, today, toast, fileUrl, flower, sendLink, DEMO_DATA, setLang, getLang };
+  return { DEMO, sb, withTimeout, esc, fmtDate, today, toast, fileUrl, flower, sendLink, DEMO_DATA, setLang, getLang };
 })();
