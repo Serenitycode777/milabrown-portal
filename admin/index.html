@@ -384,17 +384,33 @@
     return head("Clients", draft ? "New client" : esc(nameOf(p)), draft ? "Fill in the card and save." : sub) + `<div class="split">${list}<div>${clientDetail(p)}</div></div>`;
   }
 
+  // Collapsible sections on the client page (remember which ones are open)
+  const openFolds = new Set();
+  document.addEventListener("toggle", (e) => { const d = e.target; if (d && d.dataset && d.dataset.fold) { if (d.open) openFolds.add(d.dataset.fold); else openFolds.delete(d.dataset.fold); } }, true);
+  const CHEV = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>';
+  function fold(key, title, meta, body, force) {
+    return `<details class="panel fold" data-fold="${key}" ${force || openFolds.has(key) ? "open" : ""}><summary><span class="fold-h"><h3>${title}</h3>${meta ? `<span class="fold-meta">${meta}</span>` : ""}</span><span class="fold-ic">${CHEV}</span></summary><div class="fold-body">${body}</div></details>`;
+  }
+  const bare = (html, keepTitle) => { let h = html.replace('<form class="panel"', '<form class="fold-form"'); return keepTitle ? h : h.replace(/<h3>[^<]*<\/h3>/, ""); };
+  function addBox(key, label, table, title, row) {
+    const editingRow = !!(row && row.id);
+    if (editingRow) return `<div class="fold-edit">${bare(formHtml(table, title, row), true)}</div>`;
+    return `<details class="fold-add" data-fold="${key}" ${openFolds.has(key) ? "open" : ""}><summary><span class="plus" aria-hidden="true">+</span> ${label}</summary>${bare(formHtml(table, title, row))}</details>`;
+  }
+
   function clientDetail(p) {
     const crmRow = p.crm || (draft ? { ...draft } : p.prof ? { name: p.prof.full_name, email: p.prof.email, phone: p.prof.phone } : null);
     const btns = p.crm ? `<button class="btn ghost" type="button" data-archive="milabrownclients" data-id="${p.crm.id}">Archive</button><button class="btn danger" type="button" data-del="milabrownclients" data-id="${p.crm.id}">Delete card</button>` : draft ? `<button class="btn ghost" type="button" data-canceldraft>Cancel</button>` : "";
-    let html = formHtml("milabrownclients", p.crm ? "Client card" : "Client card (new)", p.crm ? p.crm : crmRow, btns);
-    if (draft) return html;
+    if (draft) return formHtml("milabrownclients", "Client card (new)", crmRow, btns);
+    const c = p.crm || crmRow || {};
+    const cardMeta = [c.email, c.phone, c.format, c.retreat_date ? "Retreat " + fmtDate(c.retreat_date) : "", c.categories].filter(Boolean).map(esc).join(" · ");
+    let html = fold("card", p.crm ? "Client card" : "Client card (new)", cardMeta, bare(formHtml("milabrownclients", "", p.crm ? p.crm : crmRow, btns)));
     const email = (p.crm && p.crm.email) || (p.prof && p.prof.email);
     if (email) {
       const sent = mailsTo(email);
-      html = `<div class="panel"><div class="req-top"><h3>Email</h3><button class="btn sm" type="button" data-mail="${esc(email)}" data-name="${esc(nameOf(p))}">✉ Send email</button></div>
-        <p class="small muted">From hello@milabrown.pro to ${esc(email)}. Replies come to your hello@ inbox.</p>
-        ${sent.length ? `<div class="list">${sent.map((m) => `<div class="item"><div><b>${esc(m.subject)}</b> <span class="muted small">· ${fmtWhen(m.sent_at)}</span><p class="small muted mail-body">${esc(m.body || "")}</p></div></div>`).join("")}</div>` : `<p class="muted small">No emails sent from the admin yet.</p>`}</div>` + html;
+      html = fold("email", "Email", sent.length ? `${sent.length} sent · last ${fmtWhen(sent[0].sent_at)}` : "No emails yet",
+        `<div class="actions" style="margin:0 0 10px"><button class="btn sm" type="button" data-mail="${esc(email)}" data-name="${esc(nameOf(p))}">✉ Send email</button><span class="small muted">From hello@milabrown.pro to ${esc(email)}</span></div>
+        ${sent.length ? `<div class="list">${sent.map((m) => `<div class="item"><div><b>${esc(m.subject)}</b> <span class="muted small">· ${fmtWhen(m.sent_at)}</span><p class="small muted mail-body">${esc(m.body || "")}</p></div></div>`).join("")}</div>` : ""}`) + html;
     }
     if (!p.prof) {
       html += `<div class="panel invite"><h3>Serene Portal access</h3><p class="muted">${esc(nameOf(p))} doesn't have a Serene Portal login yet. Invite them and their portal (services, protocols, retreats) appears here automatically.</p>
@@ -405,14 +421,17 @@
     const pr = p.prof, id = pr.id;
     const svc = DB.client_services.filter((x) => x.client_id === id), prot = DB.protocols.filter((x) => x.client_id === id), at = DB.retreat_attendance.filter((x) => x.client_id === id);
     const prEdit = editing.protocols ? { ...editing.protocols, tasks: (editing.protocols.protocol_tasks || []).slice().sort((a, b) => a.sort - b.sort).map((t) => t.text).join("\n") } : null;
-    html += `<div class="panel portal-head"><h3>Serene Portal</h3><p class="small muted">${[`<i class="dot on"></i>Has access`, pr.phone ? "Phone in profile: " + esc(pr.phone) : "", PREF[pr.contact_pref] ? "Prefers " + PREF[pr.contact_pref] : "", "Portal in " + (pr.language === "ru" ? "Russian" : "English")].filter(Boolean).join(" · ")}</p>
-        <p class="small muted">Everything below is visible to ${esc(nameOf(p))} in their Serene Portal.</p></div>
-      <div class="panel"><h3>Services</h3>${listHtml("client_services", svc, (r) => `<b>${esc(r.modality)}</b> <span class="muted small">· ${fmtDate(r.service_date)}</span>${r.notes ? `<p class="small muted">${esc(r.notes)}</p>` : ""}`)}</div>
-      ${formHtml("client_services", editing.client_services ? "Edit service" : "Add a service", editing.client_services)}
-      <div class="panel"><h3>Protocols</h3>${listHtml("protocols", prot, (r) => { const t = r.protocol_tasks || []; return `<b>${esc(r.title)}</b> <span class="pill ${esc(r.status)}">${esc(r.status)}</span>${r.phase ? `<p class="small muted">${esc(r.phase)}</p>` : ""}${t.length ? `<p class="small muted">${t.filter((x) => x.done).length} of ${t.length} checklist items done</p>` : ""}`; })}</div>
-      ${formHtml("protocols", prEdit ? "Edit protocol" : "Add a protocol", prEdit)}
-      <div class="panel"><h3>Retreats</h3>${listHtml("retreat_attendance", at, (r) => `<b>${esc(r.title || (DB.retreats.find((x) => x.id === r.retreat_id) || {}).title || "Retreat")}</b> <span class="pill ${esc(r.status)}">${esc(r.status)}</span> <span class="muted small">${fmtDate(r.attended_on)}</span>`)}</div>
-      ${formHtml("retreat_attendance", editing.retreat_attendance ? "Edit retreat" : "Add a retreat", editing.retreat_attendance)}`;
+    const n = (k, one, many) => k ? `${k} ${k === 1 ? one : many}` : "None yet";
+    html += `<p class="portal-line small muted"><i class="dot on"></i>Serene Portal access · ${[pr.phone ? "Phone " + esc(pr.phone) : "", PREF[pr.contact_pref] ? "Prefers " + PREF[pr.contact_pref] : "", "Portal in " + (pr.language === "ru" ? "Russian" : "English")].filter(Boolean).join(" · ")}. Everything below is visible to ${esc(nameOf(p))}.</p>` +
+      fold("svc", "Services", n(svc.length, "session", "sessions") + (svc[0] ? ` · last ${esc(svc[0].modality)}, ${fmtDate(svc[0].service_date)}` : ""),
+        listHtml("client_services", svc, (r) => `<b>${esc(r.modality)}</b> <span class="muted small">· ${fmtDate(r.service_date)}</span>${r.notes ? `<p class="small muted">${esc(r.notes)}</p>` : ""}`) +
+        addBox("svc-add", "Add a service", "client_services", editing.client_services ? "Edit service" : "Add a service", editing.client_services), !!editing.client_services) +
+      fold("prot", "Protocols", n(prot.length, "protocol", "protocols") + (prot.filter((x) => x.status === "active").length ? ` · ${prot.filter((x) => x.status === "active").length} active` : ""),
+        listHtml("protocols", prot, (r) => { const t = r.protocol_tasks || []; return `<b>${esc(r.title)}</b> <span class="pill ${esc(r.status)}">${esc(r.status)}</span>${r.phase ? `<p class="small muted">${esc(r.phase)}</p>` : ""}${t.length ? `<p class="small muted">${t.filter((x) => x.done).length} of ${t.length} checklist items done</p>` : ""}`; }) +
+        addBox("prot-add", "Add a protocol", "protocols", prEdit ? "Edit protocol" : "Add a protocol", prEdit), !!editing.protocols) +
+      fold("ret", "Retreats", n(at.length, "retreat", "retreats"),
+        listHtml("retreat_attendance", at, (r) => `<b>${esc(r.title || (DB.retreats.find((x) => x.id === r.retreat_id) || {}).title || "Retreat")}</b> <span class="pill ${esc(r.status)}">${esc(r.status)}</span> <span class="muted small">${fmtDate(r.attended_on)}</span>`) +
+        addBox("ret-add", "Add a retreat", "retreat_attendance", editing.retreat_attendance ? "Edit retreat" : "Add a retreat", editing.retreat_attendance), !!editing.retreat_attendance);
     return html;
   }
 
@@ -489,7 +508,7 @@
   // ---------- events ----------
   const current = () => people().find((x) => x.key === sel);
   async function selectPerson(k) {
-    sel = k; draft = null; editing = {};
+    sel = k; draft = null; editing = {}; openFolds.clear();
     const p = current();
     try { await loadPortal(p && p.prof && p.prof.id); } catch { toast("Couldn't load this client's portal."); }
     render(); window.scrollTo({ top: 0, behavior: "smooth" });
