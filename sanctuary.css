@@ -252,3 +252,5 @@ main{min-width:0}
 /* portal: booking widget */
 .booking-panel{padding:clamp(10px,2.5vw,24px);min-height:520px}
 .booking-panel .mindbody-widget{min-height:480px}
+/* admin: booking tab */
+.mb-frame{width:100%;height:900px;border:0;border-radius:16px;background:#fff}
