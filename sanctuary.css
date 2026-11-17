@@ -237,3 +237,9 @@ main{min-width:0}
 .mail-dlg .actions{display:flex;gap:10px;flex-wrap:wrap}
 .mail-note{margin:0}
 .mail-body{white-space:pre-line;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+/* opening screen */
+.boot{min-height:100vh;display:grid;place-content:center;justify-items:center;gap:14px;color:var(--indigo);font-family:var(--display);font-size:1.3rem}
+.boot[hidden]{display:none}
+.boot-dot{width:34px;height:34px;border-radius:50%;border:2px solid rgba(91,75,136,.18);border-top-color:var(--indigo);animation:bootspin 1s linear infinite}
+@keyframes bootspin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.boot-dot{animation:none}}
