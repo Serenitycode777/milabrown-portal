@@ -54,7 +54,7 @@
   const CATS = ["VIP", "RUS", "ENG", "Serenity Moon"];
   const PREF = { email: "Email", phone: "Phone call", whatsapp: "WhatsApp", telegram: "Telegram" };
 
-  let tab = "requests", sel = null, draft = null, editing = {}, reqFilter = "new", cliFilter = "all", arcFilter = "all";
+  let tab = "requests", sel = null, draft = null, editing = {}, reqFilter = "new", cliFilter = "all", arcFilter = "all", libAud = "all", libWho = "";
   const qs = { requests: "", clients: "", archive: "", emails: "" };
   let bookSvc = "", bookWho = "", bookEmail = "";
   const DB = { inquiries: [], milabrownclients: [], profiles: [], modalities: [], library_items: [], retreats: [], client_services: [], protocols: [], retreat_attendance: [], email_log: [] };
@@ -436,8 +436,14 @@
   }
 
   function vLibrary() {
+    const own = (r) => Array.isArray(r.client_ids) && r.client_ids.length > 0;
+    const shared = DB.library_items.filter((r) => !own(r)), indiv = DB.library_items.filter(own);
+    const rows = (libAud === "shared" ? shared : libAud === "own" ? indiv : DB.library_items).filter((r) => !libWho || (own(r) && r.client_ids.includes(libWho)));
+    const people_ = [...new Set(indiv.flatMap((r) => r.client_ids))].map((id) => DB.profiles.find((x) => x.id === id)).filter(Boolean).sort((a, b) => (a.full_name || a.email || "").localeCompare(b.full_name || b.email || ""));
+    const filters = `<div class="toolbar">${chips("lib", libAud, [["all", `All · ${DB.library_items.length}`], ["shared", `For all clients · ${shared.length}`], ["own", `Individual · ${indiv.length}`]])}
+      ${libAud === "own" ? `<select class="search" data-libwho aria-label="Filter by client"><option value="">Every client</option>${people_.map((p) => `<option value="${esc(p.id)}" ${p.id === libWho ? "selected" : ""}>${esc(p.full_name || p.email)}</option>`).join("")}</select>` : ""}</div>`;
     return head("For clients", "Library", "Mantras, PDFs, audio and webinar links. Share with all clients, or only with the clients you choose (they find it in Library → My Docs).") + formHtml("library_items", editing.library_items ? "Edit library item" : "Add a library item", editing.library_items) +
-      `<div class="panel"><h3>All items</h3>${listHtml("library_items", DB.library_items, (r) => `<b>${esc(r.title)}</b> <span class="pill">${esc(r.kind)}</span>${r.published ? "" : ` <span class="pill paused">hidden</span>`}${Array.isArray(r.client_ids) && r.client_ids.length ? ` <span class="pill booked">Only: ${esc(r.client_ids.map((id) => { const p = DB.profiles.find((x) => x.id === id); return p ? (p.full_name || p.email) : "removed client"; }).join(", "))}</span>` : ` <span class="small muted">· all clients</span>`}${r.description ? `<p class="small muted">${esc(r.description)}</p>` : ""}`)}</div>`;
+      `<div class="panel"><h3>All items</h3>${filters}${listHtml("library_items", rows, (r) => `<b>${esc(r.title)}</b> <span class="pill">${esc(r.kind)}</span>${r.published ? "" : ` <span class="pill paused">hidden</span>`}${own(r) ? ` <span class="pill booked">Only: ${esc(r.client_ids.map((id) => { const p = DB.profiles.find((x) => x.id === id); return p ? (p.full_name || p.email) : "removed client"; }).join(", "))}</span>` : ` <span class="small muted">· all clients</span>`}${r.description ? `<p class="small muted">${esc(r.description)}</p>` : ""}`)}</div>`;
   }
   function vModalities() {
     return head("What you offer", "Modalities", "Shown to clients in their Serene Portal.") + formHtml("modalities", editing.modalities ? "Edit modality" : "Add a modality", editing.modalities) +
@@ -530,7 +536,7 @@
     if ((el = T("[data-tab]"))) { tab = el.dataset.tab; editing = {}; draft = null; render(); return; }
     if ((el = T("[data-sel]"))) { selectPerson(el.dataset.sel); return; }
     if ((el = T("[data-openclient]"))) { tab = "clients"; selectPerson(el.dataset.openclient); return; }
-    if ((el = T("[data-chip]"))) { const v = el.dataset.v; if (el.dataset.chip === "req") reqFilter = v; else if (el.dataset.chip === "cli") cliFilter = v; else arcFilter = v; render(); return; }
+    if ((el = T("[data-chip]"))) { const v = el.dataset.v; if (el.dataset.chip === "req") reqFilter = v; else if (el.dataset.chip === "cli") cliFilter = v; else if (el.dataset.chip === "lib") { libAud = v; if (v !== "own") libWho = ""; } else arcFilter = v; render(); return; }
     if (T("[data-newclient]")) { draft = {}; sel = null; editing = {}; render(); return; }
     if (T("[data-canceldraft]")) { draft = null; render(); return; }
     if ((el = T("[data-confirm]"))) {
@@ -562,6 +568,7 @@
     if ((el = T("[data-open]"))) { if (DEMO) { toast("Opens the file in the live admin."); return; } const w = window.open("", "_blank"); const u = await fileUrl(el.dataset.bucket, el.dataset.open); if (u && w) w.location = u; else if (w) w.close(); return; }
   });
   document.addEventListener("change", async (e) => {
+    if (e.target.matches && e.target.matches("[data-libwho]")) { libWho = e.target.value; render(); return; }
     if (e.target.matches && e.target.matches('.audience input[type="radio"]')) { const fs = e.target.closest(".audience"); fs.querySelector(".aud-list").hidden = e.target.value !== "some"; return; }
     const bk = e.target.closest("[data-bk]");
     if (bk) { if (bk.dataset.bk === "svc") bookSvc = bk.value; else if (bk.dataset.bk === "who") bookWho = bk.value; else bookEmail = bk.value; if (bk.dataset.bk !== "email") { render(); if (bookWho === "other" && bk.dataset.bk === "who") { const i = $("bk-email"); if (i) i.focus(); } } return; }
