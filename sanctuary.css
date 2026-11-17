@@ -292,3 +292,9 @@ input[type=radio]{width:18px;height:18px;padding:0;accent-color:var(--indigo);fl
 .heart[aria-pressed="true"] svg{fill:#e0435a;stroke:#e0435a}
 .heart.pop{transform:scale(1.18)}
 @media (prefers-reduced-motion:reduce){.heart{transition:none}.heart.pop{transform:none}}
+/* admin: gold top bar */
+.top.top-admin{background:linear-gradient(120deg,#f6e7bf 0%,#e6c47a 55%,#d9b56a 100%);border-bottom:1px solid #c99a3e;box-shadow:0 8px 22px -16px rgba(150,110,30,.8)}
+.top-admin .brand{color:#3f3266}
+.top-admin .brand small{color:#6b5320;font-weight:500}
+.top-admin .btn.ghost{border-color:rgba(63,50,102,.55);color:#3f3266;background:rgba(255,255,255,.35)}
+.top-admin .btn.ghost:hover{background:#3f3266;color:#faf2dd;border-color:#3f3266}
