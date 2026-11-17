@@ -94,6 +94,7 @@ window.S = (function () {
       { id: "l2", kind: "pdf", title: "Daily Ayurvedic routine (Dinacharya)", description: "A one-page morning and evening rhythm.", file_path: "dinacharya.pdf" },
       { id: "l3", kind: "webinar", title: "Webinar: Calming the nervous system", description: "Recording, 58 minutes.", url: "https://example.com" },
       { id: "l4", kind: "audio", title: "Sound bath, 20-minute recording", description: "Use headphones, lying down.", file_path: "soundbath.mp3" },
+      { id: "l6", kind: "pdf", title: "Your birth chart", description: "Read before our next session.", file_path: "demo/birth-chart.pdf", client_ids: ["demo"], created_at: "2026-11-12T10:00:00" },
       { id: "l5", kind: "mantra", title: "Sat Nam", description: "Truth is my identity. Breathe in Sat, breathe out Nam.", body: "Sat Nam" },
     ],
     services: [
