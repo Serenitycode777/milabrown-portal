@@ -272,3 +272,23 @@ main{min-width:0}
 input[type=radio]{width:18px;height:18px;padding:0;accent-color:var(--indigo);flex:none}
 .audience .aud-mode .check,.audience .aud-list .check{display:flex;align-items:center;gap:10px;width:auto;text-transform:none;letter-spacing:0;font-weight:400}
 .audience .aud-list{display:grid;gap:8px}
+/* My documents folder: gold so it stands out */
+.folder.mine{background:linear-gradient(135deg,#fbf3df,#f3e2b6);border-color:var(--gold);color:#5a4416;font-weight:500;box-shadow:0 6px 18px -10px rgba(217,181,106,.9)}
+.folder.mine svg{fill:rgba(217,181,106,.55);stroke:#a57d2c}
+.folder.mine b{color:#8a6a22}
+.folder.mine:hover{border-color:#b98d35}
+.folder.mine[aria-pressed="true"]{background:linear-gradient(135deg,#e2bd6e,#c99a3e);border-color:#c99a3e;color:#fff}
+.folder.mine[aria-pressed="true"] svg{fill:rgba(255,255,255,.3);stroke:#fff}
+.folder.mine[aria-pressed="true"] b{color:#fff}
+/* Favorites: red heart */
+.folder.fav svg{fill:#e0435a;stroke:#e0435a}
+.folder.fav[aria-pressed="true"]{background:#fff0f2;border-color:#e0435a;color:#9c2238}
+.folder.fav[aria-pressed="true"] b{color:#9c2238}
+.lib-card{position:relative;padding-right:58px}
+.heart{position:absolute;top:14px;right:14px;width:36px;height:36px;border-radius:50%;border:1px solid var(--stone);background:#fff;display:grid;place-items:center;cursor:pointer;padding:0;transition:transform .15s,border-color .2s}
+.heart svg{width:19px;height:19px;fill:none;stroke:#b9a9b2;stroke-width:1.7;stroke-linejoin:round;transition:fill .2s,stroke .2s}
+.heart:hover{border-color:#e0435a}.heart:hover svg{stroke:#e0435a}
+.heart[aria-pressed="true"]{border-color:#f3c2ca;background:#fff5f6}
+.heart[aria-pressed="true"] svg{fill:#e0435a;stroke:#e0435a}
+.heart.pop{transform:scale(1.18)}
+@media (prefers-reduced-motion:reduce){.heart{transition:none}.heart.pop{transform:none}}
