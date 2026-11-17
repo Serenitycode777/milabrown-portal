@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Sanctuary · Mila Brown</title>
-<meta name="description" content="Sanctuary: the private client space of Mila Brown. Your protocols, sessions, retreats and practice library.">
+<title>Serene Portal · Mila Brown</title>
+<meta name="description" content="Serene Portal: the private client space of Mila Brown. Your protocols, sessions, retreats and practice library.">
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#5b4b88">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -22,13 +22,16 @@
 
 <div class="demo-flag" id="demo-flag" hidden></div>
 
+<!-- Opening (shown while the saved sign-in is checked) -->
+<div class="boot" id="boot" hidden role="status" aria-live="polite"><div class="boot-dot"></div><p data-i="opening"></p></div>
+
 <!-- Login -->
 <section class="login" id="login" hidden>
   <div class="login-card">
     <div class="lang-switch" role="group" aria-label="Language"><button type="button" data-setlang="en">EN</button><button type="button" data-setlang="ru">RU</button></div>
     <div id="login-flower"></div>
     <p class="eyebrow" data-i="loginEyebrow"></p>
-    <h1>Sanctuary</h1>
+    <h1>Serene Portal</h1>
     <p class="muted" data-i="loginLead"></p>
     <form id="login-form" novalidate>
       <label for="login-email" data-i="yourEmail"></label>
@@ -70,7 +73,7 @@
 <div id="app" hidden>
   <header class="top">
     <div class="in">
-      <a class="brand" href="#home" data-go="home">Sanctuary<small>Mila Brown</small></a>
+      <a class="brand" href="#home" data-go="home">Serene Portal<small>Mila Brown</small></a>
       <div class="who"><button class="who-btn" type="button" data-go="profile" id="who-name"></button><button class="btn ghost sm" id="logout" type="button" data-i="signOut"></button></div>
     </div>
   </header>
@@ -94,7 +97,7 @@
 
 <script>
 (function () {
-  const { DEMO, sb, esc, fmtDate, today, toast, fileUrl, flower, sendLink, DEMO_DATA, setLang, getLang } = S;
+  const { DEMO, sb, withTimeout, esc, fmtDate, today, toast, fileUrl, flower, sendLink, DEMO_DATA, setLang, getLang } = S;
   const $ = (id) => document.getElementById(id);
 
   // ---------- interface text, English and Russian ----------
@@ -108,18 +111,18 @@
       notClient: "Not a client yet?", previewSetPw: "Preview: create password screen",
       badLogin: "Email or password is incorrect. No password yet? Use “Email me a sign-in link instead”.", needPass: "Please enter your password.",
       resetSent: (e) => `If <b>${e}</b> is registered, we've sent a link to set a new password.`, typeEmailFirst: "Type your email above first.",
-      createTitle: "Create your password", createLead: "Welcome! Choose a password for your Sanctuary. Next time, sign in with your email and this password.",
-      resetTitle: "Set a new password", resetLead: "Choose a new password for your Sanctuary.",
+      createTitle: "Create your password", createLead: "Welcome! Choose a password for your Serene Portal. Next time, sign in with your email and this password.",
+      resetTitle: "Set a new password", resetLead: "Choose a new password for your Serene Portal.",
       newPassword: "New password (at least 8 characters)", repeatPassword: "Repeat password", showPassword: "Show password", hidePassword: "Hide password", savePassword: "Save password", skipForNow: "Skip for now",
       pwShort: "Please use at least 8 characters.", pwMismatch: "The two passwords don't match.", pwSaved: "Password saved",
       pwPanel: "Password", pwPanelText: "Sign in with your email and password, or ask for an email link anytime.", changePassword: "Save new password", loginEyebrow: "Mila Brown · client space",
       loginLead: "Your protocols, sessions, retreats and practice library in one place.", yourEmail: "Your email",
       sendLink: "Send me a sign-in link", sending: "Sending…", noPassword: "No password needed. Not a client yet?", getInTouch: "Get in touch",
       openPreview: "Open the preview", linkSent: (e) => `Check your inbox. We sent a sign-in link to <b>${e}</b>. Open it on this device.`,
-      badEmail: "Please enter a valid email address.", notConfirmed: "Your invitation isn’t accepted yet. Open the invitation email from Mila and create your password there, or use “Email me a sign-in link instead”.", tooMany: "Too many attempts. Please wait a few minutes and try again.", loadFail: "We couldn't load your space. Please refresh the page, or sign in again.",
+      badEmail: "Please enter a valid email address.", opening: "Opening your Serene Portal…", slow: "The connection is slow right now. Please check your internet and try again.", notConfirmed: "Your invitation isn’t accepted yet. Open the invitation email from Mila and create your password there, or use “Email me a sign-in link instead”.", tooMany: "Too many attempts. Please wait a few minutes and try again.", loadFail: "We couldn't load your space. Please refresh the page, or sign in again.",
       signOut: "Sign out", saveFail: "Couldn't save. Please try again.", fileDemo: "In the live portal this opens the file.",
       nav: { home: "Home", modalities: "Modalities", services: "My services", protocols: "My protocols", retreats: "Retreats", library: "Library", profile: "My profile" },
-      welcomeEyebrow: "Welcome to your Sanctuary", hello: "Hello", welcomeText: "Everything from our work together lives here: your protocols, past sessions and retreats, plus mantras, guides and recordings for your practice.",
+      welcomeEyebrow: "Welcome to your Serene Portal", hello: "Hello", welcomeText: "Everything from our work together lives here: your protocols, past sessions and retreats, plus mantras, guides and recordings for your practice.",
       activeProtocols: (n) => `active protocol${n === 1 ? "" : "s"}`, sessionsWith: (n) => `session${n === 1 ? "" : "s"} with Mila`, retreatsN: (n) => `retreat${n === 1 ? "" : "s"}`, libItems: "library items",
       currentProtocol: "Current protocol", openProtocol: "Open protocol", noActive: "No active protocol", noActiveText: "When Mila prepares your personal plan, it will appear here.",
       lastSession: "Last session", allSessions: "All sessions", practice: "Practice", yourLibrary: "Your library", libraryText: "Mantras, guides and webinar recordings for every client.", openLibrary: "Open library",
@@ -136,7 +139,7 @@
       libEyebrow: "For every client", libText: "Mantras, guides and recordings Mila shares with all her clients.", libEmpty: "Mila will add mantras, guides and webinars here soon.",
       kinds: { all: "All", mantra: "Mantras", pdf: "Guides & PDFs", webinar: "Webinars", audio: "Audio", link: "Links" },
       kind1: { mantra: "Mantra", pdf: "Guide · PDF", webinar: "Webinar", audio: "Audio", link: "Link" }, open: "Open", listen: "Listen", watch: "Watch", openLink: "Open link",
-      profEyebrow: "Settings", profText: "Your details and the language of your Sanctuary. Mila sees your name, phone and contact preference.",
+      profEyebrow: "Settings", profText: "Your details and the language of your Serene Portal. Mila sees your name, phone and contact preference.",
       details: "My details", fullName: "Full name", phone: "Phone", contactPref: "How Mila should contact you",
       contacts: { "": "No preference", email: "Email", phone: "Phone call", whatsapp: "WhatsApp", telegram: "Telegram" },
       language: "Language", langNote: "Changes the language of the portal. Your protocols and notes stay as Mila wrote them.",
@@ -153,18 +156,18 @@
       notClient: "Ещё не клиент?", previewSetPw: "Предпросмотр: экран создания пароля",
       badLogin: "Неверный email или пароль. Пароля ещё нет? Нажмите «Прислать ссылку для входа на email».", needPass: "Введите пароль.",
       resetSent: (e) => `Если <b>${e}</b> зарегистрирован, мы отправили ссылку для нового пароля.`, typeEmailFirst: "Сначала введите email выше.",
-      createTitle: "Создайте пароль", createLead: "Добро пожаловать! Придумайте пароль для вашего Sanctuary. В следующий раз входите по email и паролю.",
-      resetTitle: "Новый пароль", resetLead: "Придумайте новый пароль для вашего Sanctuary.",
+      createTitle: "Создайте пароль", createLead: "Добро пожаловать! Придумайте пароль для вашего Serene Portal. В следующий раз входите по email и паролю.",
+      resetTitle: "Новый пароль", resetLead: "Придумайте новый пароль для вашего Serene Portal.",
       newPassword: "Новый пароль (не менее 8 символов)", repeatPassword: "Повторите пароль", showPassword: "Показать пароль", hidePassword: "Скрыть пароль", savePassword: "Сохранить пароль", skipForNow: "Пропустить",
       pwShort: "Пароль должен быть не короче 8 символов.", pwMismatch: "Пароли не совпадают.", pwSaved: "Пароль сохранён",
       pwPanel: "Пароль", pwPanelText: "Входите по email и паролю или в любой момент запросите ссылку на email.", changePassword: "Сохранить новый пароль", loginEyebrow: "Мила Браун · пространство клиента",
       loginLead: "Ваши протоколы, сессии, ретриты и библиотека практик в одном месте.", yourEmail: "Ваш email",
       sendLink: "Прислать ссылку для входа", sending: "Отправляем…", noPassword: "Пароль не нужен. Ещё не клиент?", getInTouch: "Напишите Миле",
       openPreview: "Открыть предпросмотр", linkSent: (e) => `Проверьте почту. Мы отправили ссылку для входа на <b>${e}</b>. Откройте её на этом устройстве.`,
-      badEmail: "Введите корректный email.", notConfirmed: "Приглашение ещё не принято. Откройте письмо-приглашение от Милы и создайте пароль, или нажмите «Прислать ссылку для входа на email».", tooMany: "Слишком много попыток. Подождите несколько минут и попробуйте снова.", loadFail: "Не удалось загрузить ваше пространство. Обновите страницу или войдите снова.",
+      badEmail: "Введите корректный email.", opening: "Открываем ваше пространство…", slow: "Связь сейчас медленная. Проверьте интернет и попробуйте ещё раз.", notConfirmed: "Приглашение ещё не принято. Откройте письмо-приглашение от Милы и создайте пароль, или нажмите «Прислать ссылку для входа на email».", tooMany: "Слишком много попыток. Подождите несколько минут и попробуйте снова.", loadFail: "Не удалось загрузить ваше пространство. Обновите страницу или войдите снова.",
       signOut: "Выйти", saveFail: "Не удалось сохранить. Попробуйте ещё раз.", fileDemo: "В рабочем портале здесь откроется файл.",
       nav: { home: "Главная", modalities: "Практики", services: "Мои сессии", protocols: "Мои протоколы", retreats: "Ретриты", library: "Библиотека", profile: "Мой профиль" },
-      welcomeEyebrow: "Добро пожаловать в ваш Sanctuary", hello: "Здравствуйте", welcomeText: "Здесь собрано всё о нашей совместной работе: ваши протоколы, прошедшие сессии и ретриты, а также мантры, гайды и записи для практики.",
+      welcomeEyebrow: "Добро пожаловать в ваш Serene Portal", hello: "Здравствуйте", welcomeText: "Здесь собрано всё о нашей совместной работе: ваши протоколы, прошедшие сессии и ретриты, а также мантры, гайды и записи для практики.",
       activeProtocols: () => "активные протоколы", sessionsWith: () => "сессии с Милой", retreatsN: () => "ретриты", libItems: "материалы в библиотеке",
       currentProtocol: "Текущий протокол", openProtocol: "Открыть протокол", noActive: "Нет активного протокола", noActiveText: "Когда Мила подготовит ваш личный план, он появится здесь.",
       lastSession: "Последняя сессия", allSessions: "Все сессии", practice: "Практика", yourLibrary: "Ваша библиотека", libraryText: "Мантры, гайды и записи вебинаров для всех клиентов.", openLibrary: "Открыть библиотеку",
@@ -223,7 +226,7 @@
 
   // Phone menu: show arrows / dots when there are more sections to the side
   function navState() {
-    const n = $("nav"), w = $("nav-wrap"); if (!n || !w) return;
+    const n = $("nav"), w = $("nav-wrap"); if (!n || !w || !n.clientWidth) return;
     const max = n.scrollWidth - n.clientWidth;
     w.classList.toggle("can-left", n.scrollLeft > 4);
     w.classList.toggle("can-right", n.scrollLeft < max - 4);
@@ -245,10 +248,10 @@
   $("setpw-flower").innerHTML = flower("flower");
   var pwMode = (window.__AUTH_TYPE === "invite" || window.__AUTH_TYPE === "signup") ? "create" : window.__AUTH_TYPE === "recovery" ? "reset" : "";
   var linkMode = false;
-  function showLogin() { $("app").hidden = true; $("setpw").hidden = true; $("login").hidden = false; }
+  function showLogin() { $("boot").hidden = true; $("app").hidden = true; $("setpw").hidden = true; $("login").hidden = false; }
   function showSetPw() {
     const t = T();
-    $("app").hidden = true; $("login").hidden = true; $("setpw").hidden = false;
+    $("boot").hidden = true; $("app").hidden = true; $("login").hidden = true; $("setpw").hidden = false;
     $("setpw-title").textContent = pwMode === "reset" ? t.resetTitle : t.createTitle;
     $("setpw-lead").textContent = pwMode === "reset" ? t.resetLead : t.createLead;
     $("setpw-err").hidden = true; $("pw1").focus();
@@ -276,10 +279,14 @@
     $("demo-enter").addEventListener("click", () => start(DEMO_DATA));
     $("demo-setpw").addEventListener("click", () => { pwMode = "create"; showSetPw(); });
   } else {
-    const route = (session) => { if (session && pwMode) showSetPw(); else if (session) load(session.user); else showLogin(); };
+    let routed = false;
+    const route = (session) => { routed = true; if (session && pwMode) showSetPw(); else if (session) load(session.user); else showLogin(); };
+    $("boot").hidden = false;
     sb.auth.onAuthStateChange((event, session) => { if (event === "PASSWORD_RECOVERY") pwMode = "reset"; setTimeout(() => route(session), 0); });
     if (window.__AUTH_ERR) { history.replaceState(null, "", location.pathname); setTimeout(() => say("login-err", T().linkExpired), 0); }
-    sb.auth.getSession().then(({ data }) => route(data.session));
+    withTimeout(sb.auth.getSession(), 12000).then(({ data }) => route(data.session)).catch(() => { if (!routed) { showLogin(); say("login-err", T().slow); } });
+    // Watchdog: if nothing has answered after 12 seconds, show the sign-in screen instead of a blank page
+    setTimeout(() => { if (!routed) { showLogin(); say("login-err", T().slow); } }, 12000);
   }
 
   $("use-link").addEventListener("click", () => setLinkMode(!linkMode));
@@ -305,8 +312,10 @@
     } else {
       if (!pass) { btn.disabled = false; say("login-err", t.needPass); $("login-pass").focus(); return; }
       btn.textContent = t.signingIn;
-      const { error } = await sb.auth.signInWithPassword({ email, password: pass });
-      if (error) {
+      let error;
+      try { ({ error } = await withTimeout(sb.auth.signInWithPassword({ email, password: pass }))); } catch (e) { error = e; }
+      if (error && error.code === "timeout") say("login-err", t.slow);
+      else if (error) {
         const m = (error.code || "") + " " + (error.message || "");
         say("login-err", /not.?confirmed/i.test(m) ? t.notConfirmed : /invalid|credentials/i.test(m) ? t.badLogin : /rate|too many/i.test(m) ? t.tooMany : esc(t.loadFail + " (" + (error.message || "") + ")"));
       }
@@ -348,9 +357,10 @@
     if (a !== b) { say("setpw-err", t.pwMismatch); return; }
     const btn = $("setpw-btn"); btn.disabled = true;
     if (!DEMO) {
-      const { data, error } = await sb.auth.updateUser({ password: a });
+      let data, error;
+      try { ({ data, error } = await withTimeout(sb.auth.updateUser({ password: a }))); } catch (e) { error = e; }
       btn.disabled = false;
-      if (error) { say("setpw-err", esc(pwError(error))); return; }
+      if (error) { say("setpw-err", esc(error.code === "timeout" ? t.slow : pwError(error))); return; }
       pwMode = ""; history.replaceState(null, "", location.pathname); $("pw1").value = $("pw2").value = "";
       toast(t.pwSaved); load(data.user);
     } else { btn.disabled = false; pwMode = ""; toast(t.pwSaved); start(DEMO_DATA); }
@@ -361,7 +371,7 @@
   async function load(user) {
     if (loading || D.profile) return; loading = true;
     try {
-      const q = await Promise.all([
+      const q = await withTimeout(Promise.all([
         sb.from("profiles").select("id,email,full_name,phone,language,contact_pref").eq("id", user.id).maybeSingle(),
         sb.from("modalities").select("*").eq("active", true).order("sort"),
         sb.from("client_services").select("*").order("service_date", { ascending: false }),
@@ -369,14 +379,14 @@
         sb.from("retreat_attendance").select("*, retreats(title,location)").order("attended_on", { ascending: false }),
         sb.from("retreats").select("*").eq("published", true).order("starts_on", { ascending: true, nullsFirst: true }),
         sb.from("library_items").select("*").eq("published", true).order("created_at", { ascending: false }),
-      ]);
+      ]), 25000);
       const bad = q.find((r) => r.error);
       if (bad) throw bad.error;
       start({ profile: q[0].data || { id: user.id, email: user.email, language: getLang() }, modalities: q[1].data, services: q[2].data, protocols: q[3].data,
         attendance: q[4].data, retreats: q[5].data, library: q[6].data });
     } catch (err) {
-      $("login").hidden = false; $("app").hidden = true;
-      $("login-err").textContent = T().loadFail; $("login-err").hidden = false;
+      $("boot").hidden = true; $("login").hidden = false; $("app").hidden = true;
+      $("login-err").textContent = err && err.code === "timeout" ? T().slow : T().loadFail; $("login-err").hidden = false;
     } finally { loading = false; }
   }
 
@@ -384,7 +394,7 @@
     Object.assign(D, JSON.parse(JSON.stringify(data)));
     D.protocols.forEach((p) => (p.protocol_tasks || []).sort((a, b) => a.sort - b.sort));
     if (D.profile.language) setLang(D.profile.language);
-    $("login").hidden = true; $("app").hidden = false;
+    $("boot").hidden = true; $("login").hidden = true; $("app").hidden = false;
     whoName();
     go((location.hash || "#home").slice(1));
   }
@@ -523,7 +533,7 @@
       btn.disabled = true; btn.textContent = t.sending;
       let ok = true;
       if (!DEMO) {
-        const { error } = await sb.from("inquiries").insert({ name: p.full_name || p.email, email: p.email, phone: p.phone || null, format: "Sanctuary client request", modalities: names.join(", "), goal: note || null });
+        const { error } = await sb.from("inquiries").insert({ name: p.full_name || p.email, email: p.email, phone: p.phone || null, format: "Serene Portal client request", modalities: names.join(", "), goal: note || null });
         ok = !error;
       }
       btn.disabled = false; btn.textContent = t.reqSend;
