@@ -127,7 +127,7 @@
       currentProtocol: "Current protocol", openProtocol: "Open protocol", noActive: "No active protocol", noActiveText: "When Mila prepares your personal plan, it will appear here.",
       lastSession: "Last session", allSessions: "All sessions", practice: "Practice", yourLibrary: "Your library", libraryText: "Mantras, guides and webinar recordings for every client.", openLibrary: "Open library",
       done: (d, n) => `${d} of ${n} done`,
-      modEyebrow: "What Mila offers", modText: "Every practice Mila offers. Ask about any of them at your next session or book directly.", modEmpty: "Modalities will appear here soon.", bookAsk: "Book or ask", bookEyebrow: "Consultations with Mila", bookText: "Ayurveda, Jyotish, VedaPulse and coaching, in person in North Raleigh or on Zoom. Book at least 72 hours ahead; free cancellation up to 24 hours before.", bookBtn: "Book a session", bookLoading: "Loading the calendar…",
+      modEyebrow: "What Mila offers", modText: "Every practice Mila offers. Ask about any of them at your next session or book directly.", modEmpty: "Modalities will appear here soon.", bookAsk: "Book or ask", bookEyebrow: "Consultations with Mila", bookText: "Sound healing, Ayurveda, Jyotish, VedaPulse and coaching, in person in North Raleigh or on Zoom. Book at least 72 hours ahead; free cancellation up to 24 hours before.", bookBtn: "Book a session", bookLoading: "Loading the calendar…",
       pickHint: "Tap the small circle on any practice you’d like, then send your request to Mila.", pickTitle: "Request", pickLabel: (x) => `Request ${x}`,
       reqCount: (n) => n === 1 ? "1 practice selected" : `${n} practices selected`, reqNote: "Add a note (optional)", reqSend: "Send request", reqClear: "Clear",
       reqSent: "Request sent. Mila will be in touch.", reqFail: "Couldn’t send. Please try again.",
@@ -172,7 +172,7 @@
       currentProtocol: "Текущий протокол", openProtocol: "Открыть протокол", noActive: "Нет активного протокола", noActiveText: "Когда Мила подготовит ваш личный план, он появится здесь.",
       lastSession: "Последняя сессия", allSessions: "Все сессии", practice: "Практика", yourLibrary: "Ваша библиотека", libraryText: "Мантры, гайды и записи вебинаров для всех клиентов.", openLibrary: "Открыть библиотеку",
       done: (d, n) => `выполнено ${d} из ${n}`,
-      modEyebrow: "Что предлагает Мила", modText: "Все практики, с которыми работает Мила. Спросите о любой на следующей сессии или запишитесь.", modEmpty: "Практики скоро появятся здесь.", bookAsk: "Записаться или спросить", bookEyebrow: "Консультации с Милой", bookText: "Аюрведа, Джйотиш, VedaPulse и коучинг — лично в North Raleigh или в Zoom. Запись не позже чем за 72 часа; бесплатная отмена до 24 часов до сессии.", bookBtn: "Записаться", bookLoading: "Загружаем календарь…",
+      modEyebrow: "Что предлагает Мила", modText: "Все практики, с которыми работает Мила. Спросите о любой на следующей сессии или запишитесь.", modEmpty: "Практики скоро появятся здесь.", bookAsk: "Записаться или спросить", bookEyebrow: "Консультации с Милой", bookText: "Звуковая терапия, аюрведа, Джйотиш, VedaPulse и коучинг — лично в North Raleigh или в Zoom. Запись не позже чем за 72 часа; бесплатная отмена до 24 часов до сессии.", bookBtn: "Записаться", bookLoading: "Загружаем календарь…",
       pickHint: "Нажмите на маленький кружок на понравившейся практике и отправьте запрос Миле.", pickTitle: "Запросить", pickLabel: (x) => `Запросить: ${x}`,
       reqCount: (n) => `Выбрано практик: ${n}`, reqNote: "Комментарий (необязательно)", reqSend: "Отправить запрос", reqClear: "Сбросить",
       reqSent: "Запрос отправлен. Мила свяжется с вами.", reqFail: "Не удалось отправить. Попробуйте ещё раз.",
@@ -555,7 +555,7 @@
     const sc = document.createElement("script"); sc.async = true; sc.dataset.mbWidget = "1";
     sc.src = "https://brandedweb.mindbodyonline.com/embed/widget.js"; document.body.appendChild(sc);
   }
-  const CONSULT = /ayurveda|jyotish|vedic|vedapulse|coaching|mentor/i;
+  const CONSULT = /ayurveda|jyotish|vedic|vedapulse|coaching|mentor|sound/i;
 
   function modalities() {
     const t = T();
