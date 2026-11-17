@@ -348,6 +348,92 @@
     $("mail-dlg").close(); toast(DEMO ? "Preview: in the live admin this email is sent." : "Email sent to " + mailCtx.to); render();
   });
 
+  // ---------- new email to many: everyone, chosen people, or by tag (VIP, RUS, ENG…) ----------
+  document.body.insertAdjacentHTML("beforeend", `<dialog class="mail-dlg bulk-dlg" id="bulk-dlg" aria-labelledby="bulk-h">
+    <form method="dialog" id="bulk-form" novalidate>
+      <div class="req-top"><h3 id="bulk-h">New email</h3><button class="linkbtn" type="button" data-bulkclose aria-label="Close">✕</button></div>
+      <p class="small muted">From <b>Mila Brown &lt;hello@milabrown.pro&gt;</b>. Each person gets their own copy, so no one sees the other addresses.</p>
+      <div class="bulk-to"><span class="small"><b>Send to</b></span><div class="filters" role="group" id="bulk-modes"></div></div>
+      <div id="bulk-pick"></div>
+      <p class="small bulk-sum" id="bulk-sum" aria-live="polite"></p>
+      <label for="bulk-subj">Subject<input id="bulk-subj" type="text" maxlength="200" required></label>
+      <label for="bulk-msg">Message<textarea id="bulk-msg" rows="9" maxlength="10000" required></textarea></label>
+      <label class="check"><input type="checkbox" id="bulk-hi" checked> <span>Start each email with “Hi <i>first name</i>,”</span></label>
+      <p class="note err" id="bulk-err" role="alert" hidden></p>
+      <div class="actions"><button class="btn" type="submit" id="bulk-send">Send</button><button class="btn ghost" type="button" data-bulkclose>Cancel</button></div>
+    </form></dialog>`);
+  let bulk = { mode: "all", tags: [], picked: new Set(), find: "", busy: false };
+  const audience = () => people().filter((p) => !(p.crm && p.crm.archived)).map((p) => ({ key: p.key, name: /@|^\(no name\)$/.test(nameOf(p)) ? "" : nameOf(p), email: ((p.crm && p.crm.email) || (p.prof && p.prof.email) || "").trim(), tags: split(p.crm && p.crm.categories) }))
+    .filter((x) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x.email)).sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email));
+  const bulkList = () => { const a = audience(); return bulk.mode === "all" ? a : bulk.mode === "tag" ? a.filter((x) => x.tags.some((t) => bulk.tags.includes(t))) : a.filter((x) => bulk.picked.has(x.key)); };
+  function bulkDraw() {
+    const a = audience(), tags = [...new Set([...CATS, ...a.flatMap((x) => x.tags)])];
+    $("bulk-modes").innerHTML = [["all", `All clients · ${a.length}`], ["tag", "By tag"], ["pick", "Choose people"]].map(([v, t]) => `<button class="chip" type="button" data-bmode="${v}" aria-pressed="${v === bulk.mode}">${t}</button>`).join("");
+    let pick = "";
+    if (bulk.mode === "tag") pick = `<div class="filters" role="group" aria-label="Tags">${tags.map((t) => { const n = a.filter((x) => x.tags.includes(t)).length; return `<button class="chip" type="button" data-btag="${esc(t)}" aria-pressed="${bulk.tags.includes(t)}">${esc(t)} · ${n}</button>`; }).join("")}</div><p class="small muted">Pick one or more tags. Anyone with any of them gets the email.</p>`;
+    if (bulk.mode === "pick") {
+      const f = bulk.find.toLowerCase(), shown = a.filter((x) => !f || [x.name, x.email, x.tags.join(" ")].join(" ").toLowerCase().includes(f));
+      pick = `<input class="search" type="search" id="bulk-find" value="${esc(bulk.find)}" placeholder="Search name, email, tag…" aria-label="Search people">
+        <div class="bulk-people">${shown.map((x) => `<label class="check"><input type="checkbox" data-bpick="${esc(x.key)}" ${bulk.picked.has(x.key) ? "checked" : ""}> <span><b>${esc(x.name || x.email)}</b> <span class="muted small">${esc(x.email)}${x.tags.length ? " · " + esc(x.tags.join(", ")) : ""}</span></span></label>`).join("") || `<p class="small muted">No one matches.</p>`}</div>`;
+    }
+    $("bulk-pick").innerHTML = pick;
+    const list = bulkList();
+    $("bulk-sum").innerHTML = list.length ? `Will send to <b>${list.length}</b> ${list.length === 1 ? "person" : "people"}: <span class="muted">${list.slice(0, 8).map((x) => esc(x.name || x.email)).join(", ")}${list.length > 8 ? ` and ${list.length - 8} more` : ""}</span>` : `<span class="muted">No one chosen yet.</span>`;
+    if (!bulk.busy) { $("bulk-send").disabled = !list.length; $("bulk-send").textContent = list.length ? `Send to ${list.length}` : "Send"; }
+  }
+  function openBulk() {
+    bulk = { mode: "all", tags: [], picked: new Set(), find: "", busy: false };
+    $("bulk-subj").value = ""; $("bulk-msg").value = ""; $("bulk-hi").checked = true; $("bulk-err").hidden = true;
+    bulkDraw(); $("bulk-dlg").showModal(); $("bulk-subj").focus();
+  }
+  $("bulk-dlg").addEventListener("click", (e) => {
+    const T = (s) => e.target.closest(s); let el;
+    if (T("[data-bulkclose]")) { if (!bulk.busy) $("bulk-dlg").close(); return; }
+    if ((el = T("[data-bmode]"))) { bulk.mode = el.dataset.bmode; bulkDraw(); return; }
+    if ((el = T("[data-btag]"))) { const t = el.dataset.btag; bulk.tags = bulk.tags.includes(t) ? bulk.tags.filter((x) => x !== t) : [...bulk.tags, t]; bulkDraw(); return; }
+  });
+  $("bulk-dlg").addEventListener("change", (e) => {
+    const cb = e.target.closest("[data-bpick]"); if (!cb) return;
+    if (cb.checked) bulk.picked.add(cb.dataset.bpick); else bulk.picked.delete(cb.dataset.bpick); bulkDraw();
+  });
+  $("bulk-dlg").addEventListener("input", (e) => {
+    if (e.target.id !== "bulk-find") return;
+    bulk.find = e.target.value; const pos = e.target.selectionStart; bulkDraw();
+    const i = $("bulk-find"); i.focus(); i.setSelectionRange(pos, pos);
+  });
+  $("bulk-form").addEventListener("submit", async (e) => {
+    e.preventDefault(); if (bulk.busy) return;
+    const subject = $("bulk-subj").value.trim(), body = $("bulk-msg").value.trim(), hi = $("bulk-hi").checked, err = $("bulk-err"), btn = $("bulk-send"), list = bulkList();
+    err.hidden = true;
+    if (!list.length) { err.textContent = "Choose who gets this email."; err.hidden = false; return; }
+    if (!subject || !body) { err.textContent = "Please add a subject and a message."; err.hidden = false; return; }
+    bulk.busy = true; btn.disabled = true;
+    const failed = [];
+    for (let i = 0; i < list.length; i++) {
+      const p = list[i], first = (p.name || "").trim().split(/\s+/)[0] || "";
+      const message = (hi ? (first ? `Hi ${first},` : "Hello,") + "\n\n" : "") + body;
+      btn.textContent = `Sending ${i + 1} of ${list.length}…`;
+      let row = { to_email: p.email, to_name: p.name || null, subject, body: message, sent_at: new Date().toISOString() };
+      if (!DEMO) {
+        let msg = "";
+        try {
+          const { data, error } = await sb.functions.invoke("smart-action", { body: { to: p.email, name: p.name || "", subject, message, inquiry_id: null } });
+          msg = data && data.error;
+          if (error) { try { const j = await error.context.json(); msg = j.error || error.message; } catch { msg = error.message; } }
+          if (!msg && (!data || !data.ok)) msg = "unknown error";
+          if (!msg && data.log) row = data.log;
+        } catch (x) { msg = x.message || "network error"; }
+        if (msg) { failed.push(`${p.name || p.email} (${msg})`); continue; }
+        await new Promise((r) => setTimeout(r, 600)); // stay under the email service's per-second limit
+      }
+      DB.email_log.unshift(row);
+    }
+    bulk.busy = false;
+    const ok = list.length - failed.length;
+    if (failed.length) { err.textContent = `Sent ${ok} of ${list.length}. Not sent: ${failed.join("; ")}`; err.hidden = false; bulkDraw(); render(); return; }
+    $("bulk-dlg").close(); toast(DEMO ? `Preview: in the live admin this goes to ${ok} ${ok === 1 ? "person" : "people"}.` : `Email sent to ${ok} ${ok === 1 ? "person" : "people"}`); render();
+  });
+
   function reqCard(r) {
     return `<article class="card req${r.contacted || r.archived ? " done" : ""}">
       <div class="req-top"><h3>${esc(r.name || "(no name)")}</h3><span class="small muted">${fmtWhen(r.created_at)}</span></div>
@@ -490,12 +576,12 @@
     const people_ = people();
     const who = (m) => people_.find((p) => [p.crm && p.crm.email, p.prof && p.prof.email].some((e) => e && e.toLowerCase() === (m.to_email || "").toLowerCase()));
     return head("Sent from hello@milabrown.pro", "Emails", `${DB.email_log.length} email${DB.email_log.length === 1 ? "" : "s"} sent from the admin. Newest first; click one to read it.`) +
-      `<div class="toolbar">${search("emails", "Search name, email, subject…")}</div>
+      `<div class="toolbar">${search("emails", "Search name, email, subject…")}<button class="btn sm" type="button" data-newmail>✉ New email</button></div>
       <div class="stack">${rows.map((m) => { const p = who(m); return `<details class="card mail-row"><summary><div class="req-top"><h3>${esc(m.subject || "(no subject)")}</h3><span class="small muted">${fmtWhen(m.sent_at)}</span></div>
         <p class="small">To <b>${esc(m.to_name || m.to_email)}</b>${m.to_name ? ` <span class="muted">&lt;${esc(m.to_email)}&gt;</span>` : ""}</p></summary>
         <p class="mail-full">${esc(m.body || "")}</p>
         <div class="actions">${p ? `<button class="btn ghost sm" type="button" data-openclient="${esc(p.key)}">Open client</button>` : ""}<button class="btn sm" type="button" data-mail="${esc(m.to_email)}" data-name="${esc(m.to_name || "")}">✉ Write again</button></div></details>`; }).join("") ||
-        `<div class="empty">${DB.email_log.length ? "No emails match." : "No emails sent yet. Use ✉ Send email on a request or a client."}</div>`}</div>`;
+        `<div class="empty">${DB.email_log.length ? "No emails match." : "No emails sent yet. Use ✉ New email above, or ✉ Send email on a request or a client."}</div>`}</div>`;
   }
 
   function vArchive() {
@@ -531,6 +617,7 @@
       openMail(to, name, null, { subject: `Book your ${s.name}`, body: `Here is the link to choose a time for your ${s.name} (${s.meta.replace(" · ", ", ")}):\n\n${svcLink(s.id)}\n\nPick any time that suits you. You'll get a confirmation and a reminder by email.\n\nSee you soon,` });
       return;
     }
+    if (T("[data-newmail]")) { openBulk(); return; }
     if ((el = T("[data-mail]"))) { openMail(el.dataset.mail, el.dataset.name, el.dataset.inq); return; }
     if (T("[data-mailclose]")) { $("mail-dlg").close(); return; }
     if ((el = T("[data-tab]"))) { tab = el.dataset.tab; editing = {}; draft = null; render(); return; }
