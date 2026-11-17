@@ -89,6 +89,7 @@ window.S = (function () {
       ["VedaPulse Diagnostics", "Insight", "A pulse reading that shows the current state of your body and doshas.", "", ""],
       ["Breathwork & Pranayama", "Breath & Mind", "Breath patterns that calm or energize the nervous system.", "", ""],
     ].map(([title, category, description, duration, price], i) => ({ id: "m" + i, title, category, description, duration, price, booking_url: "https://milabrown.pro/#contact", sort: i, active: true })),
+    favs: ["l4"],
     library: [
       { id: "l1", kind: "mantra", title: "Ong Namo Guru Dev Namo", description: "Adi mantra to tune in before practice. Chant 3 times.", body: "Ong Namo Guru Dev Namo\nI bow to the subtle divine wisdom,\nthe divine teacher within." },
       { id: "l2", kind: "pdf", title: "Daily Ayurvedic routine (Dinacharya)", description: "A one-page morning and evening rhythm.", file_path: "dinacharya.pdf" },
