@@ -317,7 +317,7 @@
     btn.disabled = true; btn.textContent = "Sending…";
     let row = { to_email: mailCtx.to, to_name: mailCtx.name || null, subject, body: message, inquiry_id: mailCtx.inq || null, sent_at: new Date().toISOString() };
     if (!DEMO) {
-      const { data, error } = await sb.functions.invoke("send-email", { body: { to: mailCtx.to, name: mailCtx.name || "", subject, message, inquiry_id: mailCtx.inq || null } });
+      const { data, error } = await sb.functions.invoke("smart-action", { body: { to: mailCtx.to, name: mailCtx.name || "", subject, message, inquiry_id: mailCtx.inq || null } });
       let msg = data && data.error;
       if (error) { try { const j = await error.context.json(); msg = j.error || error.message; } catch { msg = error.message; } }
       if (msg || !data || !data.ok) { btn.disabled = false; btn.textContent = "Send"; err.textContent = "Not sent: " + (msg || "unknown error") + (/not found|404|failed to send a request/i.test(msg || "") ? ". Is the send-email function set up in Supabase?" : ""); err.hidden = false; return; }
