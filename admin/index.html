@@ -59,6 +59,7 @@
   let bookSvc = "", bookWho = "", bookEmail = "";
   const DB = { inquiries: [], milabrownclients: [], profiles: [], modalities: [], library_items: [], retreats: [], client_services: [], protocols: [], retreat_attendance: [], email_log: [] };
   const PORTAL_TABLES = ["client_services", "protocols", "retreat_attendance"];
+  const bucketOf = (table) => table === "protocols" ? "protocols" : "library";
 
   $("login-flower").innerHTML = flower("flower");
 
@@ -86,6 +87,7 @@
       { k: "title", t: "text", l: "Title", req: true, wide: true },
       { k: "kind", t: "select", l: "Type", o: [["mantra", "Mantra"], ["pdf", "Guide / PDF"], ["webinar", "Webinar"], ["audio", "Audio"], ["link", "Link"]] },
       { k: "published", t: "check", l: "Visible to clients", d: true },
+      { k: "client_ids", t: "audience", l: "Who can see this", wide: true },
       { k: "description", t: "textarea", l: "Short description", wide: true },
       { k: "body", t: "textarea", l: "Mantra text (for mantras)", wide: true },
       { k: "url", t: "url", l: "Link (webinar, video or page)", wide: true },
@@ -143,6 +145,14 @@
     if (f.t === "select") { const o = typeof f.o === "function" ? f.o() : f.o; return `<label${w} for="${id}">${f.l}<select id="${id}">${o.map(([a, b]) => `<option value="${esc(a)}" ${String(val) === String(a) ? "selected" : ""}>${esc(b)}</option>`).join("")}</select></label>`; }
     if (f.t === "list") return `<label${w} for="${id}">${f.l}<input id="${id}" list="${id}-dl" value="${esc(val)}"><datalist id="${id}-dl">${f.src().map((x) => `<option value="${esc(x)}">`).join("")}</datalist></label>`;
     if (f.t === "file") return `<label${w} for="${id}">${f.l}${val ? ` <span class="small muted" style="text-transform:none;letter-spacing:0">current: ${esc(String(val).split("/").pop())}</span>` : ""}<input id="${id}" type="file"></label>`;
+    if (f.t === "audience") {
+      const ids = Array.isArray(v) ? v : [], some = ids.length > 0;
+      const ppl = DB.profiles.map((p) => ({ id: p.id, name: p.full_name || p.email || "(no name)", email: p.email || "" })).sort((a, b) => a.name.localeCompare(b.name));
+      return `<fieldset class="multi audience wide" id="${id}"><legend>${f.l}</legend>
+        <div class="aud-mode"><label class="check"><input type="radio" name="${id}-mode" value="all" ${some ? "" : "checked"}> All clients</label>
+        <label class="check"><input type="radio" name="${id}-mode" value="some" ${some ? "checked" : ""}> Only chosen clients</label></div>
+        <div class="checks aud-list" ${some ? "" : "hidden"}>${ppl.length ? ppl.map((p) => `<label class="check"><input type="checkbox" value="${esc(p.id)}" ${ids.includes(p.id) ? "checked" : ""}> ${esc(p.name)}${p.email && p.email !== p.name ? ` <span class="small muted">${esc(p.email)}</span>` : ""}</label>`).join("") : `<p class="small muted">No clients with Serene Portal access yet.</p>`}</div></fieldset>`;
+    }
     if (f.t === "multi") {
       const chosen = split(val), opts = [...new Set([...f.o(), ...chosen])];
       return `<fieldset class="multi${f.wide ? " wide" : ""}" id="${id}"><legend>${f.l}</legend><div class="checks">${opts.map((o) => `<label class="check"><input type="checkbox" value="${esc(o)}" ${chosen.includes(o) ? "checked" : ""}> ${esc(o)}</label>`).join("")}</div>
@@ -162,6 +172,11 @@
       if (f.t === "check") out[f.k] = el.checked;
       else if (f.t === "file") { if (el.files[0]) files[f.k] = { file: el.files[0], bucket: f.bucket }; }
       else if (f.t === "multi") out[f.k] = [...el.querySelectorAll(".checks input:checked")].map((x) => x.value).join(", ") || null;
+      else if (f.t === "audience") {
+        const mode = (el.querySelector('input[type="radio"]:checked') || {}).value;
+        out[f.k] = mode === "some" ? [...el.querySelectorAll(".aud-list input:checked")].map((x) => x.value) : null;
+        if (mode === "some" && !out[f.k].length) throw new Error("Choose at least one client, or pick “All clients”.");
+      }
       else if (f.t === "number") out[f.k] = el.value === "" ? null : Number(el.value);
       else out[f.k] = el.value.trim() === "" ? null : el.value.trim();
       if (f.req && !out[f.k]) { el.focus(); throw new Error(`Please fill in “${f.l}”.`); }
@@ -270,7 +285,7 @@
     if (DEMO) DB[table] = DB[table].filter((x) => x.id !== id);
     else {
       await q(sb.from(table).delete().eq("id", id));
-      if (row && row.file_path) await sb.storage.from(table === "protocols" ? "protocols" : "library").remove([row.file_path]);
+      if (row && row.file_path) await sb.storage.from(bucketOf(table)).remove([row.file_path]);
       if (PORTAL_TABLES.includes(table)) await loadPortal(profileId); else await loadAll();
     }
     toast("Deleted"); render();
@@ -284,7 +299,7 @@
   const chips = (name, cur, opts) => `<div class="filters" role="group">${opts.map(([v, t]) => `<button class="chip" type="button" data-chip="${name}" data-v="${v}" aria-pressed="${v === cur}">${t}</button>`).join("")}</div>`;
   const search = (name, ph) => `<input class="search" type="search" data-search="${name}" value="${esc(qs[name])}" placeholder="${ph}" aria-label="${ph}">`;
   const itemBtns = (table, id, file, bucket) => `<div class="actions" style="margin:0;flex:none">${file ? `<button class="btn ghost sm" type="button" data-open="${esc(file)}" data-bucket="${bucket}">File</button>` : ""}<button class="btn ghost sm" type="button" data-edit="${table}" data-id="${id}">Edit</button><button class="btn danger sm" type="button" data-del="${table}" data-id="${id}">Delete</button></div>`;
-  const listHtml = (table, rows, line) => rows.length ? `<div class="list">${rows.map((r) => `<div class="item"><div>${line(r)}</div>${itemBtns(table, r.id, r.file_path, table === "protocols" ? "protocols" : "library")}</div>`).join("")}</div>` : `<p class="muted small">Nothing here yet.</p>`;
+  const listHtml = (table, rows, line) => rows.length ? `<div class="list">${rows.map((r) => `<div class="item"><div>${line(r)}</div>${itemBtns(table, r.id, r.file_path, bucketOf(table))}</div>`).join("")}</div>` : `<p class="muted small">Nothing here yet.</p>`;
 
   function render() {
     const fresh = DB.inquiries.filter((r) => !r.archived && !r.contacted).length;
@@ -402,8 +417,8 @@
   }
 
   function vLibrary() {
-    return head("Shared with every client", "Library", "Mantras, PDFs, audio and webinar links.") + formHtml("library_items", editing.library_items ? "Edit library item" : "Add a library item", editing.library_items) +
-      `<div class="panel"><h3>All items</h3>${listHtml("library_items", DB.library_items, (r) => `<b>${esc(r.title)}</b> <span class="pill">${esc(r.kind)}</span>${r.published ? "" : ` <span class="pill paused">hidden</span>`}${r.description ? `<p class="small muted">${esc(r.description)}</p>` : ""}`)}</div>`;
+    return head("For clients", "Library", "Mantras, PDFs, audio and webinar links. Share with all clients, or only with the clients you choose (they find it in Library → My documents).") + formHtml("library_items", editing.library_items ? "Edit library item" : "Add a library item", editing.library_items) +
+      `<div class="panel"><h3>All items</h3>${listHtml("library_items", DB.library_items, (r) => `<b>${esc(r.title)}</b> <span class="pill">${esc(r.kind)}</span>${r.published ? "" : ` <span class="pill paused">hidden</span>`}${Array.isArray(r.client_ids) && r.client_ids.length ? ` <span class="pill booked">Only: ${esc(r.client_ids.map((id) => { const p = DB.profiles.find((x) => x.id === id); return p ? (p.full_name || p.email) : "removed client"; }).join(", "))}</span>` : ` <span class="small muted">· all clients</span>`}${r.description ? `<p class="small muted">${esc(r.description)}</p>` : ""}`)}</div>`;
   }
   function vModalities() {
     return head("What you offer", "Modalities", "Shown to clients in their Serene Portal.") + formHtml("modalities", editing.modalities ? "Edit modality" : "Add a modality", editing.modalities) +
@@ -528,6 +543,7 @@
     if ((el = T("[data-open]"))) { if (DEMO) { toast("Opens the file in the live admin."); return; } const w = window.open("", "_blank"); const u = await fileUrl(el.dataset.bucket, el.dataset.open); if (u && w) w.location = u; else if (w) w.close(); return; }
   });
   document.addEventListener("change", async (e) => {
+    if (e.target.matches && e.target.matches('.audience input[type="radio"]')) { const fs = e.target.closest(".audience"); fs.querySelector(".aud-list").hidden = e.target.value !== "some"; return; }
     const bk = e.target.closest("[data-bk]");
     if (bk) { if (bk.dataset.bk === "svc") bookSvc = bk.value; else if (bk.dataset.bk === "who") bookWho = bk.value; else bookEmail = bk.value; if (bk.dataset.bk !== "email") { render(); if (bookWho === "other" && bk.dataset.bk === "who") { const i = $("bk-email"); if (i) i.focus(); } } return; }
     const cb = e.target.closest("[data-contacted]"); if (!cb) return;
