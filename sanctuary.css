@@ -243,3 +243,9 @@ main{min-width:0}
 .boot-dot{width:34px;height:34px;border-radius:50%;border:2px solid rgba(91,75,136,.18);border-top-color:var(--indigo);animation:bootspin 1s linear infinite}
 @keyframes bootspin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.boot-dot{animation:none}}
+/* admin: Emails list */
+.mail-row summary{list-style:none;cursor:pointer;display:grid;gap:6px}
+.mail-row summary::-webkit-details-marker{display:none}
+.mail-row summary h3{font-size:1.25rem}
+.mail-row[open]{border-color:var(--indigo)}
+.mail-full{white-space:pre-line;margin:6px 0 0;padding:14px 16px;background:var(--mist);border-radius:14px;line-height:1.6}
