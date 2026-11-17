@@ -326,3 +326,13 @@ input[type=radio]{width:18px;height:18px;padding:0;accent-color:var(--indigo);fl
 .admin-link:hover{background:#3f3266;border-color:#3f3266;color:#faf2dd}
 .admin-link[hidden]{display:none}
 @media (max-width:560px){.top .who{gap:6px}.top .who .btn.sm{padding:8px 11px;letter-spacing:.06em;font-size:.68rem}.top .brand{font-size:1.1rem;letter-spacing:.08em}}
+/* new email to many */
+.bulk-dlg .bulk-to{display:grid;gap:8px}
+.bulk-dlg .bulk-people{display:grid;gap:2px;max-height:220px;overflow:auto;border:1px solid var(--stone);border-radius:14px;padding:8px 12px;margin-top:8px}
+.mail-dlg label.check{display:flex;align-items:center;gap:10px}
+.bulk-dlg .bulk-people label.check{align-items:flex-start;padding:5px 0}
+.bulk-dlg .bulk-people label.check input{margin-top:3px}
+.bulk-dlg .bulk-sum{margin:0;padding:10px 14px;border-radius:12px;background:rgba(91,75,136,.06)}
+.bulk-dlg textarea{min-height:170px}
+.bulk-dlg #bulk-pick:empty{display:none}
+.view .toolbar [data-newmail]{flex:none}
