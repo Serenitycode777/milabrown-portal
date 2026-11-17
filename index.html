@@ -136,9 +136,9 @@
       started: "Started", openPdf: "Open protocol PDF", protocol: "Protocol",
       status: { active: "active", completed: "completed", paused: "paused", attended: "attended", booked: "booked", cancelled: "cancelled" },
       myRetreats: "My retreats", retEmpty: "Your retreats will be listed here.", upcoming: "Upcoming & available", anyDate: "Book any date", learnBook: "Learn more & book", retNone: "New retreat dates will appear here.", retreat: "Retreat",
-      libEyebrow: "For every client", libText: "Mantras, guides and recordings Mila shares with all her clients.", libEmpty: "Mila will add mantras, guides and webinars here soon.",
-      kinds: { all: "All", mantra: "Mantras", pdf: "Guides & PDFs", webinar: "Webinars", audio: "Audio", link: "Links" },
-      kind1: { mantra: "Mantra", pdf: "Guide · PDF", webinar: "Webinar", audio: "Audio", link: "Link" }, open: "Open", listen: "Listen", watch: "Watch", openLink: "Open link",
+      libEyebrow: "Your practice", libText: "Mantras, guides and recordings from Mila, plus your personal documents in My documents. Only you can open those.", libEmpty: "Mila will add mantras, guides and webinars here soon.",
+      kinds: { all: "All", mine: "My documents", mantra: "Mantras", pdf: "Guides & PDFs", webinar: "Webinars", audio: "Audio", link: "Links" },
+      kind1: { mine: "Just for you", mantra: "Mantra", pdf: "Guide · PDF", webinar: "Webinar", audio: "Audio", link: "Link" }, open: "Open", listen: "Listen", watch: "Watch", openLink: "Open link",
       profEyebrow: "Settings", profText: "Your details and the language of your Serene Portal. Mila sees your name, phone and contact preference.",
       details: "My details", fullName: "Full name", phone: "Phone", contactPref: "How Mila should contact you",
       contacts: { "": "No preference", email: "Email", phone: "Phone call", whatsapp: "WhatsApp", telegram: "Telegram" },
@@ -181,9 +181,9 @@
       started: "Начало", openPdf: "Открыть протокол (PDF)", protocol: "Протокол",
       status: { active: "активен", completed: "завершён", paused: "на паузе", attended: "посещён", booked: "забронирован", cancelled: "отменён" },
       myRetreats: "Мои ретриты", retEmpty: "Здесь будут ваши ретриты.", upcoming: "Ближайшие и доступные", anyDate: "Любая дата", learnBook: "Подробнее и запись", retNone: "Новые даты ретритов появятся здесь.", retreat: "Ретрит",
-      libEyebrow: "Для всех клиентов", libText: "Мантры, гайды и записи, которыми Мила делится со всеми клиентами.", libEmpty: "Скоро Мила добавит сюда мантры, гайды и вебинары.",
-      kinds: { all: "Все", mantra: "Мантры", pdf: "Гайды и PDF", webinar: "Вебинары", audio: "Аудио", link: "Ссылки" },
-      kind1: { mantra: "Мантра", pdf: "Гайд · PDF", webinar: "Вебинар", audio: "Аудио", link: "Ссылка" }, open: "Открыть", listen: "Слушать", watch: "Смотреть", openLink: "Открыть ссылку",
+      libEyebrow: "Ваша практика", libText: "Мантры, гайды и записи от Милы, а в папке «Мои документы» — ваши личные файлы. Открыть их можете только вы.", libEmpty: "Скоро Мила добавит сюда мантры, гайды и вебинары.",
+      kinds: { all: "Все", mine: "Мои документы", mantra: "Мантры", pdf: "Гайды и PDF", webinar: "Вебинары", audio: "Аудио", link: "Ссылки" },
+      kind1: { mine: "Лично для вас", mantra: "Мантра", pdf: "Гайд · PDF", webinar: "Вебинар", audio: "Аудио", link: "Ссылка" }, open: "Открыть", listen: "Слушать", watch: "Смотреть", openLink: "Открыть ссылку",
       profEyebrow: "Настройки", profText: "Ваши данные и язык вашего пространства. Мила видит ваше имя, телефон и удобный способ связи.",
       details: "Мои данные", fullName: "Имя и фамилия", phone: "Телефон", contactPref: "Как Миле с вами связаться",
       contacts: { "": "Без предпочтений", email: "Email", phone: "Звонок", whatsapp: "WhatsApp", telegram: "Telegram" },
@@ -375,16 +375,17 @@
       const q = await withTimeout(Promise.all([
         sb.from("profiles").select("id,email,full_name,phone,language,contact_pref").eq("id", user.id).maybeSingle(),
         sb.from("modalities").select("*").eq("active", true).order("sort"),
-        sb.from("client_services").select("*").order("service_date", { ascending: false }),
-        sb.from("protocols").select("*, protocol_tasks(*)").order("created_at", { ascending: false }),
-        sb.from("retreat_attendance").select("*, retreats(title,location)").order("attended_on", { ascending: false }),
+        sb.from("client_services").select("*").eq("client_id", user.id).order("service_date", { ascending: false }),
+        sb.from("protocols").select("*, protocol_tasks(*)").eq("client_id", user.id).order("created_at", { ascending: false }),
+        sb.from("retreat_attendance").select("*, retreats(title,location)").eq("client_id", user.id).order("attended_on", { ascending: false }),
         sb.from("retreats").select("*").eq("published", true).order("starts_on", { ascending: true, nullsFirst: true }),
         sb.from("library_items").select("*").eq("published", true).order("created_at", { ascending: false }),
       ]), 25000);
       const bad = q.find((r) => r.error);
       if (bad) throw bad.error;
       start({ profile: q[0].data || { id: user.id, email: user.email, language: getLang() }, modalities: q[1].data, services: q[2].data, protocols: q[3].data,
-        attendance: q[4].data, retreats: q[5].data, library: q[6].data });
+        attendance: q[4].data, retreats: q[5].data,
+        library: (q[6].data || []).filter((x) => !Array.isArray(x.client_ids) || !x.client_ids.length || x.client_ids.includes(user.id)) });
     } catch (err) {
       $("boot").hidden = true; $("login").hidden = false; $("app").hidden = true;
       $("login-err").textContent = err && err.code === "timeout" ? T().slow : T().loadFail; $("login-err").hidden = false;
@@ -600,15 +601,19 @@
 
   function library() {
     const t = T();
-    const kinds = Object.keys(t.kinds).filter((k) => k === "all" || D.library.some((x) => x.kind === k));
-    const items = D.library.filter((x) => libFilter === "all" || x.kind === libFilter);
+    const isMine = (x) => Array.isArray(x.client_ids) && x.client_ids.length > 0;
+    const all = D.library.map((x) => isMine(x) ? { ...x, _kind: x.kind, kind: "mine", _doc: true } : x);
+    const count = (k) => k === "all" ? all.length : all.filter((x) => x.kind === k).length;
+    const kinds = Object.keys(t.kinds).filter((k) => k === "all" || count(k));
+    if (!kinds.includes(libFilter)) libFilter = "all";
+    const items = all.filter((x) => libFilter === "all" || x.kind === libFilter);
     const h = head(t.libEyebrow, t.nav.library, t.libText);
-    if (!D.library.length) return h + empty(t.libEmpty);
-    return h + `<div class="filters" role="group" aria-label="${t.nav.library}">${kinds.map((k) => `<button class="chip" type="button" data-lib="${k}" aria-pressed="${k === libFilter}">${t.kinds[k]}</button>`).join("")}</div>
-      <div class="grid">${items.map((x) => `<article class="card"><span class="tag">${t.kind1[x.kind] || ""}</span><h3>${esc(x.title)}</h3>
-        ${x.description ? `<p class="muted">${esc(x.description)}</p>` : ""}${x.kind === "mantra" && x.body ? `<p class="mantra">${esc(x.body)}</p>` : ""}
-        <div class="actions">${x.file_path ? `<a class="btn sm" href="#" data-bucket="library" data-file="${esc(x.file_path)}">${x.kind === "audio" ? t.listen : t.open}</a>` : ""}
-        ${x.url ? `<a class="btn ${x.file_path ? "ghost " : ""}sm" href="${esc(x.url)}" target="_blank" rel="noopener">${x.kind === "webinar" ? t.watch : t.openLink}</a>` : ""}</div></article>`).join("")}</div>`;
+    if (!all.length) return h + empty(t.libEmpty);
+    return h + `<div class="folders" role="group" aria-label="${t.nav.library}">${kinds.map((k) => `<button class="folder${k === "mine" ? " mine" : ""}" type="button" data-lib="${k}" aria-pressed="${k === libFilter}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg><span>${t.kinds[k]}</span><b>${count(k)}</b></button>`).join("")}</div>
+      <div class="grid">${items.map((x) => `<article class="card${x._doc ? " card-mine" : ""}"><span class="tag">${t.kind1[x.kind] || ""}${x._doc && x.created_at ? " · " + fmtDate(String(x.created_at).slice(0, 10)) : ""}</span><h3>${esc(x.title)}</h3>
+        ${x.description ? `<p class="muted">${esc(x.description)}</p>` : ""}${(x._kind || x.kind) === "mantra" && x.body ? `<p class="mantra">${esc(x.body)}</p>` : ""}
+        <div class="actions">${x.file_path ? `<a class="btn sm" href="#" data-bucket="library" data-file="${esc(x.file_path)}">${(x._kind || x.kind) === "audio" ? t.listen : t.open}</a>` : ""}
+        ${x.url ? `<a class="btn ${x.file_path ? "ghost " : ""}sm" href="${esc(x.url)}" target="_blank" rel="noopener">${(x._kind || x.kind) === "webinar" ? t.watch : t.openLink}</a>` : ""}</div></article>`).join("")}</div>`;
   }
 
   function profile() {
