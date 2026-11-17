@@ -417,7 +417,7 @@
   }
 
   function vLibrary() {
-    return head("For clients", "Library", "Mantras, PDFs, audio and webinar links. Share with all clients, or only with the clients you choose (they find it in Library → My documents).") + formHtml("library_items", editing.library_items ? "Edit library item" : "Add a library item", editing.library_items) +
+    return head("For clients", "Library", "Mantras, PDFs, audio and webinar links. Share with all clients, or only with the clients you choose (they find it in Library → My Docs).") + formHtml("library_items", editing.library_items ? "Edit library item" : "Add a library item", editing.library_items) +
       `<div class="panel"><h3>All items</h3>${listHtml("library_items", DB.library_items, (r) => `<b>${esc(r.title)}</b> <span class="pill">${esc(r.kind)}</span>${r.published ? "" : ` <span class="pill paused">hidden</span>`}${Array.isArray(r.client_ids) && r.client_ids.length ? ` <span class="pill booked">Only: ${esc(r.client_ids.map((id) => { const p = DB.profiles.find((x) => x.id === id); return p ? (p.full_name || p.email) : "removed client"; }).join(", "))}</span>` : ` <span class="small muted">· all clients</span>`}${r.description ? `<p class="small muted">${esc(r.description)}</p>` : ""}`)}</div>`;
   }
   function vModalities() {
