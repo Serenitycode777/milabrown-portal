@@ -56,6 +56,7 @@
 
   let tab = "requests", sel = null, draft = null, editing = {}, reqFilter = "new", cliFilter = "all", arcFilter = "all";
   const qs = { requests: "", clients: "", archive: "", emails: "" };
+  let bookSvc = "", bookWho = "", bookEmail = "";
   const DB = { inquiries: [], milabrownclients: [], profiles: [], modalities: [], library_items: [], retreats: [], client_services: [], protocols: [], retreat_attendance: [], email_log: [] };
   const PORTAL_TABLES = ["client_services", "protocols", "retreat_attendance"];
 
@@ -278,7 +279,7 @@
   // ---------- views ----------
   const NAV = [["requests", "Requests", '<path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/>'], ["clients", "Clients", '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/>'],
     ["library", "Library", '<path d="M5 4h4v16H5zM10 4h4v16h-4zM15.5 4.5l3.8 1-3.8 14.6-3.6-1"/>'], ["modalities", "Modalities", '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="8" r="4"/><circle cx="12" cy="16" r="4"/>'],
-    ["retreats", "Retreats", '<path d="M3 20h18M6 20l6-14 6 14M9.5 13h5"/>'], ["emails", "Emails", '<path d="M3 11.5 21 4l-7.5 18-2.5-7.5z"/><path d="m11 14.5 10-10.5"/>'], ["archive", "Archive", '<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v11h14V9M10 13h4"/>']];
+    ["retreats", "Retreats", '<path d="M3 20h18M6 20l6-14 6 14M9.5 13h5"/>'], ["booking", "Booking", '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18M8 14h3v3H8z"/>'], ["emails", "Emails", '<path d="M3 11.5 21 4l-7.5 18-2.5-7.5z"/><path d="m11 14.5 10-10.5"/>'], ["archive", "Archive", '<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v11h14V9M10 13h4"/>']];
   const head = (e, t, p) => `<div class="view-head"><p class="eyebrow">${e}</p><h2>${t}</h2>${p ? `<p class="muted">${p}</p>` : ""}</div>`;
   const chips = (name, cur, opts) => `<div class="filters" role="group">${opts.map(([v, t]) => `<button class="chip" type="button" data-chip="${name}" data-v="${v}" aria-pressed="${v === cur}">${t}</button>`).join("")}</div>`;
   const search = (name, ph) => `<input class="search" type="search" data-search="${name}" value="${esc(qs[name])}" placeholder="${ph}" aria-label="${ph}">`;
@@ -288,7 +289,7 @@
   function render() {
     const fresh = DB.inquiries.filter((r) => !r.archived && !r.contacted).length;
     $("nav").innerHTML = NAV.map(([k, t, ic]) => `<button type="button" data-tab="${k}" aria-current="${k === tab ? "page" : "false"}"><svg viewBox="0 0 24 24">${ic}</svg>${t}${k === "requests" && fresh ? `<span class="count badge-new">${fresh}</span>` : ""}</button>`).join("");
-    $("view").innerHTML = ({ requests: vRequests, clients: vClients, library: vLibrary, modalities: vModalities, retreats: vRetreats, emails: vEmails, archive: vArchive })[tab]();
+    $("view").innerHTML = ({ requests: vRequests, clients: vClients, library: vLibrary, modalities: vModalities, retreats: vRetreats, booking: vBooking, emails: vEmails, archive: vArchive })[tab]();
   }
 
   // ---------- email (sent from hello@milabrown.pro through the send-email function) ----------
@@ -305,11 +306,11 @@
       <div class="actions"><button class="btn" type="submit" id="mail-send">Send</button><button class="btn ghost" type="button" data-mailclose>Cancel</button></div>
     </form></dialog>`);
   let mailCtx = null;
-  function openMail(to, name, inq) {
+  function openMail(to, name, inq, preset) {
     mailCtx = { to, name, inq };
     const first = (name || "").trim().split(/\s+/)[0] || "";
     $("mail-to").textContent = name ? `${name} <${to}>` : to;
-    $("mail-subj").value = ""; $("mail-msg").value = first && !/^main site|^test/i.test(name) ? `Hi ${first},\n\n` : "Hello,\n\n";
+    $("mail-subj").value = (preset && preset.subject) || ""; $("mail-msg").value = (first && !/^main site|^test/i.test(name) ? `Hi ${first},\n\n` : "Hello,\n\n") + ((preset && preset.body) || "");
     $("mail-err").hidden = true; $("mail-send").disabled = false; $("mail-send").textContent = "Send";
     $("mail-dlg").showModal(); $("mail-subj").focus();
   }
@@ -412,6 +413,37 @@
     return head("Retreats", "Retreats", "Clients see published retreats under Retreats → Upcoming.") + formHtml("retreats", editing.retreats ? "Edit retreat" : "Add a retreat", editing.retreats) +
       `<div class="panel"><h3>All retreats</h3>${listHtml("retreats", DB.retreats, (r) => `<b>${esc(r.title)}</b> <span class="muted small">${r.starts_on ? fmtDate(r.starts_on) : "any date"}</span>${r.published ? "" : ` <span class="pill paused">hidden</span>`}`)}</div>`;
   }
+  // ---------- booking (Mindbody calendar) ----------
+  const MB_WIDGET = "https://go.mindbodyonline.com/book/widgets/appointments/view/b4745589b68";
+  const MB_BOOK = "https://clients.mindbodyonline.com/app/business/mainappointments/index";
+  const SERVICES = [
+    { id: 8, name: "Discovery Call", meta: "20 min · free" },
+    { id: 11, name: "Ayurveda Consultation", meta: "60 min · $150" },
+    { id: 12, name: "Jyotish · Vedic Astrology Reading", meta: "120 min · $150" },
+    { id: 13, name: "VedaPulse Diagnostics · Express", meta: "45 min · $100" },
+    { id: 15, name: "VedaPulse Diagnostics · Full", meta: "90 min · $150" },
+    { id: 14, name: "Coaching & Mentorship", meta: "60 min · $150" },
+    { id: 16, name: "Sound Healing Bath · Private Session", meta: "60 min · $99" },
+  ];
+  const svcLink = (id) => `${MB_WIDGET}/schedule?locationId=1&serviceId=${id}&staffId=3`;
+  function vBooking() {
+    const all = people().filter((p) => !(p.crm && p.crm.archived)).map((p) => ({ key: p.key, name: nameOf(p), email: (p.crm && p.crm.email) || (p.prof && p.prof.email) || "" })).filter((p) => p.email).sort((a, b) => a.name.localeCompare(b.name));
+    const s = SERVICES.find((x) => String(x.id) === String(bookSvc));
+    return head("Mindbody calendar", "Booking", "Schedule a session yourself, or send a client a link to pick a time for one service.") +
+      `<div class="panel"><div class="req-top"><h3>Schedule a session yourself</h3><a class="btn sm" href="${MB_BOOK}" target="_blank" rel="noopener">Open Mindbody appointment book ↗</a></div>
+        <p class="small muted">Opens your Mindbody calendar in a new tab. Pick the time, then the client and service. You can book any time there, including sooner than the 72-hour online rule.</p></div>
+      <div class="panel"><h3>Send a booking link</h3>
+        <div class="fgrid">
+          <label for="bk-svc">Service<select id="bk-svc" data-bk="svc"><option value="">Choose a service…</option>${SERVICES.map((x) => `<option value="${x.id}" ${String(x.id) === String(bookSvc) ? "selected" : ""}>${esc(x.name)} · ${esc(x.meta)}</option>`).join("")}</select></label>
+          <label for="bk-who">Client<select id="bk-who" data-bk="who"><option value="">Choose a client…</option>${all.map((p) => `<option value="${esc(p.key)}" ${p.key === bookWho ? "selected" : ""}>${esc(p.name)} · ${esc(p.email)}</option>`).join("")}<option value="other" ${bookWho === "other" ? "selected" : ""}>Someone else (type email)</option></select></label>
+          ${bookWho === "other" ? `<label for="bk-email" class="wide">Email<input id="bk-email" type="email" data-bk="email" value="${esc(bookEmail)}" placeholder="name@example.com"></label>` : ""}
+        </div>
+        ${s ? `<p class="small">Booking link for <b>${esc(s.name)}</b>: <a href="${svcLink(s.id)}" target="_blank" rel="noopener">open it ↗</a></p>` : `<p class="small muted">Choose a service to get its link.</p>`}
+        <div class="actions"><button class="btn sm" type="button" data-bkmail ${s ? "" : "disabled"}>✉ Email link to client</button><button class="btn ghost sm" type="button" data-bkcopy ${s ? "" : "disabled"}>Copy link</button></div></div>
+      <div class="panel"><h3>All links</h3><div class="list">${SERVICES.map((x) => `<div class="item"><div><b>${esc(x.name)}</b> <span class="muted small">· ${esc(x.meta)}</span></div><div class="actions" style="margin:0;flex:none"><a class="btn ghost sm" href="${svcLink(x.id)}" target="_blank" rel="noopener">Open</a><button class="btn ghost sm" type="button" data-copy="${svcLink(x.id)}">Copy</button></div></div>`).join("")}</div></div>
+      <div class="panel booking-panel"><h3>Calendar as clients see it</h3><iframe class="mb-frame" title="Booking calendar" src="${MB_WIDGET}/services" loading="lazy"></iframe></div>`;
+  }
+
   function vEmails() {
     const s = qs.emails.toLowerCase();
     const rows = DB.email_log.filter((m) => !s || [m.to_name, m.to_email, m.subject, m.body].join(" ").toLowerCase().includes(s));
@@ -450,6 +482,15 @@
   document.addEventListener("click", async (e) => {
     const T = (s) => e.target.closest(s);
     let el;
+    if (T("[data-bkcopy]")) { const u = svcLink(bookSvc); try { await navigator.clipboard.writeText(u); toast("Link copied"); } catch { prompt("Copy this link:", u); } return; }
+    if (T("[data-bkmail]")) {
+      const s = SERVICES.find((x) => String(x.id) === String(bookSvc)); if (!s) return;
+      let to = "", name = "";
+      if (bookWho === "other") { to = bookEmail.trim(); } else { const p = people().find((x) => x.key === bookWho); if (p) { to = (p.crm && p.crm.email) || (p.prof && p.prof.email) || ""; name = nameOf(p); } }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) { toast("Choose a client or type a valid email first."); return; }
+      openMail(to, name, null, { subject: `Book your ${s.name}`, body: `Here is the link to choose a time for your ${s.name} (${s.meta.replace(" · ", ", ")}):\n\n${svcLink(s.id)}\n\nPick any time that suits you. You'll get a confirmation and a reminder by email.\n\nSee you soon,` });
+      return;
+    }
     if ((el = T("[data-mail]"))) { openMail(el.dataset.mail, el.dataset.name, el.dataset.inq); return; }
     if (T("[data-mailclose]")) { $("mail-dlg").close(); return; }
     if ((el = T("[data-tab]"))) { tab = el.dataset.tab; editing = {}; draft = null; render(); return; }
@@ -470,7 +511,7 @@
       if (![...fs.querySelectorAll(".checks input")].some((x) => x.value === v)) fs.querySelector(".checks").insertAdjacentHTML("beforeend", `<label class="check"><input type="checkbox" value="${esc(v)}" checked> ${esc(v)}</label>`);
       inp.value = ""; return;
     }
-    if ((el = T("[data-copy]"))) { const v = el.dataset.copy; try { await navigator.clipboard.writeText(v); toast("Email copied"); } catch { toast(v); } return; }
+    if ((el = T("[data-copy]"))) { const v = el.dataset.copy; try { await navigator.clipboard.writeText(v); toast(/^https?:/.test(v) ? "Link copied" : "Email copied"); } catch { toast(v); } return; }
     if (T("[data-invite]") && DEMO) { e.preventDefault(); toast("Opens Supabase → Authentication → Users → Invite user."); return; }
     if ((el = T("[data-edit]"))) { editing[el.dataset.edit] = DB[el.dataset.edit].find((x) => x.id === el.dataset.id); render(); const f = document.querySelector(`[data-form="${el.dataset.edit}"]`); if (f) f.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
     if ((el = T("[data-cancel]"))) { editing[el.dataset.cancel] = null; render(); return; }
@@ -487,12 +528,15 @@
     if ((el = T("[data-open]"))) { if (DEMO) { toast("Opens the file in the live admin."); return; } const w = window.open("", "_blank"); const u = await fileUrl(el.dataset.bucket, el.dataset.open); if (u && w) w.location = u; else if (w) w.close(); return; }
   });
   document.addEventListener("change", async (e) => {
+    const bk = e.target.closest("[data-bk]");
+    if (bk) { if (bk.dataset.bk === "svc") bookSvc = bk.value; else if (bk.dataset.bk === "who") bookWho = bk.value; else bookEmail = bk.value; if (bk.dataset.bk !== "email") { render(); if (bookWho === "other" && bk.dataset.bk === "who") { const i = $("bk-email"); if (i) i.focus(); } } return; }
     const cb = e.target.closest("[data-contacted]"); if (!cb) return;
     const r = DB.inquiries.find((x) => x.id === cb.dataset.contacted); cb.disabled = true;
     try { await write("inquiries", r.id, { contacted: cb.checked }); r.contacted = cb.checked; render(); }
     catch { cb.checked = !cb.checked; cb.disabled = false; toast("Couldn't update. Please try again."); }
   });
   document.addEventListener("input", (e) => {
+    if (e.target.matches && e.target.matches('[data-bk="email"]')) { bookEmail = e.target.value; return; }
     const s = e.target.closest("[data-search]"); if (!s) return;
     qs[s.dataset.search] = s.value; const pos = s.selectionStart; render();
     const again = document.querySelector(`[data-search="${s.dataset.search}"]`); if (again) { again.focus(); again.setSelectionRange(pos, pos); }
