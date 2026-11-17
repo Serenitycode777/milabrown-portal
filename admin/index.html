@@ -55,7 +55,7 @@
   const PREF = { email: "Email", phone: "Phone call", whatsapp: "WhatsApp", telegram: "Telegram" };
 
   let tab = "requests", sel = null, draft = null, editing = {}, reqFilter = "new", cliFilter = "all", arcFilter = "all";
-  const qs = { requests: "", clients: "", archive: "" };
+  const qs = { requests: "", clients: "", archive: "", emails: "" };
   const DB = { inquiries: [], milabrownclients: [], profiles: [], modalities: [], library_items: [], retreats: [], client_services: [], protocols: [], retreat_attendance: [], email_log: [] };
   const PORTAL_TABLES = ["client_services", "protocols", "retreat_attendance"];
 
@@ -205,6 +205,10 @@
       { id: "c2", name: "Irina K.", email: "irina@example.com", phone: null, format: "Half-day Reset", retreat_date: "2026-12-06", client_since: "2026-11-01", categories: "RUS", modalities: "Ayurveda, Meditation", notes: "", archived: false },
       { id: "c3", name: "Yulia G.", email: null, format: "Half-day Reset", retreat_date: "2026-05-10", categories: "RUS, Serenity Moon", archived: true },
     ];
+    DB.email_log = [
+      { id: "e1", to_email: "anna@example.com", to_name: "Anna Example", subject: "Your protocol for December", body: "Hi Anna,\n\nI've added your new protocol to the Serene Portal. Start with the morning routine this week.\n\nSee you on the 12th.", sent_at: "2026-11-15T10:20:00" },
+      { id: "e2", to_email: "olga@example.com", to_name: "Olga S.", subject: "Your retreat request", body: "Hi Olga,\n\nThank you for your request. Shall we find a date in December?", sent_at: "2026-11-14T17:05:00" },
+    ];
     DB.profiles = [{ id: "demo", email: "anna@example.com", full_name: "Anna Example", phone: "", language: "en", contact_pref: "whatsapp" }];
     DB.modalities = d.modalities; DB.library_items = d.library.map((x) => ({ published: true, ...x })); DB.retreats = d.retreats;
     DB.client_services = d.services.map((x) => ({ ...x, client_id: "demo" }));
@@ -274,7 +278,7 @@
   // ---------- views ----------
   const NAV = [["requests", "Requests", '<path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/>'], ["clients", "Clients", '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/>'],
     ["library", "Library", '<path d="M5 4h4v16H5zM10 4h4v16h-4zM15.5 4.5l3.8 1-3.8 14.6-3.6-1"/>'], ["modalities", "Modalities", '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="8" r="4"/><circle cx="12" cy="16" r="4"/>'],
-    ["retreats", "Retreats", '<path d="M3 20h18M6 20l6-14 6 14M9.5 13h5"/>'], ["archive", "Archive", '<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v11h14V9M10 13h4"/>']];
+    ["retreats", "Retreats", '<path d="M3 20h18M6 20l6-14 6 14M9.5 13h5"/>'], ["emails", "Emails", '<path d="M3 11.5 21 4l-7.5 18-2.5-7.5z"/><path d="m11 14.5 10-10.5"/>'], ["archive", "Archive", '<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v11h14V9M10 13h4"/>']];
   const head = (e, t, p) => `<div class="view-head"><p class="eyebrow">${e}</p><h2>${t}</h2>${p ? `<p class="muted">${p}</p>` : ""}</div>`;
   const chips = (name, cur, opts) => `<div class="filters" role="group">${opts.map(([v, t]) => `<button class="chip" type="button" data-chip="${name}" data-v="${v}" aria-pressed="${v === cur}">${t}</button>`).join("")}</div>`;
   const search = (name, ph) => `<input class="search" type="search" data-search="${name}" value="${esc(qs[name])}" placeholder="${ph}" aria-label="${ph}">`;
@@ -284,7 +288,7 @@
   function render() {
     const fresh = DB.inquiries.filter((r) => !r.archived && !r.contacted).length;
     $("nav").innerHTML = NAV.map(([k, t, ic]) => `<button type="button" data-tab="${k}" aria-current="${k === tab ? "page" : "false"}"><svg viewBox="0 0 24 24">${ic}</svg>${t}${k === "requests" && fresh ? `<span class="count badge-new">${fresh}</span>` : ""}</button>`).join("");
-    $("view").innerHTML = ({ requests: vRequests, clients: vClients, library: vLibrary, modalities: vModalities, retreats: vRetreats, archive: vArchive })[tab]();
+    $("view").innerHTML = ({ requests: vRequests, clients: vClients, library: vLibrary, modalities: vModalities, retreats: vRetreats, emails: vEmails, archive: vArchive })[tab]();
   }
 
   // ---------- email (sent from hello@milabrown.pro through the send-email function) ----------
@@ -408,6 +412,20 @@
     return head("Retreats", "Retreats", "Clients see published retreats under Retreats → Upcoming.") + formHtml("retreats", editing.retreats ? "Edit retreat" : "Add a retreat", editing.retreats) +
       `<div class="panel"><h3>All retreats</h3>${listHtml("retreats", DB.retreats, (r) => `<b>${esc(r.title)}</b> <span class="muted small">${r.starts_on ? fmtDate(r.starts_on) : "any date"}</span>${r.published ? "" : ` <span class="pill paused">hidden</span>`}`)}</div>`;
   }
+  function vEmails() {
+    const s = qs.emails.toLowerCase();
+    const rows = DB.email_log.filter((m) => !s || [m.to_name, m.to_email, m.subject, m.body].join(" ").toLowerCase().includes(s));
+    const people_ = people();
+    const who = (m) => people_.find((p) => [p.crm && p.crm.email, p.prof && p.prof.email].some((e) => e && e.toLowerCase() === (m.to_email || "").toLowerCase()));
+    return head("Sent from hello@milabrown.pro", "Emails", `${DB.email_log.length} email${DB.email_log.length === 1 ? "" : "s"} sent from the admin. Newest first; click one to read it.`) +
+      `<div class="toolbar">${search("emails", "Search name, email, subject…")}</div>
+      <div class="stack">${rows.map((m) => { const p = who(m); return `<details class="card mail-row"><summary><div class="req-top"><h3>${esc(m.subject || "(no subject)")}</h3><span class="small muted">${fmtWhen(m.sent_at)}</span></div>
+        <p class="small">To <b>${esc(m.to_name || m.to_email)}</b>${m.to_name ? ` <span class="muted">&lt;${esc(m.to_email)}&gt;</span>` : ""}</p></summary>
+        <p class="mail-full">${esc(m.body || "")}</p>
+        <div class="actions">${p ? `<button class="btn ghost sm" type="button" data-openclient="${esc(p.key)}">Open client</button>` : ""}<button class="btn sm" type="button" data-mail="${esc(m.to_email)}" data-name="${esc(m.to_name || "")}">✉ Write again</button></div></details>`; }).join("") ||
+        `<div class="empty">${DB.email_log.length ? "No emails match." : "No emails sent yet. Use ✉ Send email on a request or a client."}</div>`}</div>`;
+  }
+
   function vArchive() {
     const s = qs.archive.toLowerCase();
     const items = [...(arcFilter === "cli" ? [] : DB.inquiries.filter((r) => r.archived).map((r) => ({ r, k: "inq", d: r.created_at || "" }))),
@@ -436,6 +454,7 @@
     if (T("[data-mailclose]")) { $("mail-dlg").close(); return; }
     if ((el = T("[data-tab]"))) { tab = el.dataset.tab; editing = {}; draft = null; render(); return; }
     if ((el = T("[data-sel]"))) { selectPerson(el.dataset.sel); return; }
+    if ((el = T("[data-openclient]"))) { tab = "clients"; selectPerson(el.dataset.openclient); return; }
     if ((el = T("[data-chip]"))) { const v = el.dataset.v; if (el.dataset.chip === "req") reqFilter = v; else if (el.dataset.chip === "cli") cliFilter = v; else arcFilter = v; render(); return; }
     if (T("[data-newclient]")) { draft = {}; sel = null; editing = {}; render(); return; }
     if (T("[data-canceldraft]")) { draft = null; render(); return; }
