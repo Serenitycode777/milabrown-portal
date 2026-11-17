@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Sanctuary Admin</title>
+<title>Serene Portal Admin</title>
 <meta name="robots" content="noindex">
 <meta name="theme-color" content="#5b4b88">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -20,7 +20,7 @@
   <div class="login-card">
     <div id="login-flower"></div>
     <p class="eyebrow">For Mila only</p>
-    <h1>Sanctuary Admin</h1>
+    <h1>Serene Portal Admin</h1>
     <form id="login-form" novalidate>
       <label for="login-email">Email</label>
       <input id="login-email" type="email" autocomplete="username" required>
@@ -36,7 +36,7 @@
 
 <div id="app" hidden>
   <header class="top"><div class="in">
-    <a class="brand" href="../">Sanctuary<small>Admin</small></a>
+    <a class="brand" href="../">Serene Portal<small>Admin</small></a>
     <div class="who"><a class="btn ghost sm hide-sm" href="../">Client view</a><button class="btn ghost sm" id="logout" type="button">Sign out</button></div>
   </div></header>
   <div class="shell">
@@ -212,7 +212,7 @@
     DB.retreat_attendance = d.attendance.map((x) => ({ ...x, client_id: "demo", retreat_id: "" }));
   }
 
-  // People = retreat guest cards and Sanctuary accounts, matched by email
+  // People = retreat guest cards and Serene Portal accounts, matched by email
   function people() {
     const map = new Map();
     DB.milabrownclients.forEach((c) => { const k = key(c.email) || "c:" + c.id; map.set(k, { key: k, crm: c, prof: null }); });
@@ -353,13 +353,13 @@
     const upcoming = (p) => p.crm && p.crm.retreat_date && p.crm.retreat_date >= t;
     const shown = all.filter((p) => (cliFilter === "all" || (cliFilter === "upcoming" ? upcoming(p) : cliFilter === "portal" ? !!p.prof : !upcoming(p))) &&
       (!s || [nameOf(p), p.crm && p.crm.email, p.prof && p.prof.email, p.crm && p.crm.categories, p.crm && p.crm.notes].join(" ").toLowerCase().includes(s)));
-    const list = `<div class="clients-col">${search("clients", "Search clients…")}${chips("cli", cliFilter, [["all", "All"], ["upcoming", "Upcoming"], ["past", "Past"], ["portal", "In Sanctuary"]])}
+    const list = `<div class="clients-col">${search("clients", "Search clients…")}${chips("cli", cliFilter, [["all", "All"], ["upcoming", "Upcoming"], ["past", "Past"], ["portal", "In Serene Portal"]])}
       <button class="btn sm" type="button" data-newclient style="width:100%;margin-bottom:10px">+ New client</button>
       <div class="clients">${shown.map((p) => `<button type="button" data-sel="${esc(p.key)}" aria-current="${p.key === sel && !draft}"><b style="font-weight:500">${esc(nameOf(p))}</b>
         <small>${esc((p.crm && p.crm.email) || (p.prof && p.prof.email) || "no email")}</small>
-        <span class="mini">${p.prof ? `<i class="dot on" title="Has Sanctuary access"></i>Sanctuary` : `<i class="dot"></i>Not invited`}${p.crm && p.crm.retreat_date ? ` · ${fmtDate(p.crm.retreat_date)}` : ""}${p.crm && p.crm.categories ? ` · ${esc(p.crm.categories)}` : ""}</span></button>`).join("") || `<p class="muted small">No clients match.</p>`}</div></div>`;
+        <span class="mini">${p.prof ? `<i class="dot on" title="Has Serene Portal access"></i>Serene Portal` : `<i class="dot"></i>Not invited`}${p.crm && p.crm.retreat_date ? ` · ${fmtDate(p.crm.retreat_date)}` : ""}${p.crm && p.crm.categories ? ` · ${esc(p.crm.categories)}` : ""}</span></button>`).join("") || `<p class="muted small">No clients match.</p>`}</div></div>`;
     const p = draft ? { key: "draft", crm: null, prof: null } : all.find((x) => x.key === sel);
-    const sub = `${all.length} clients · ${all.filter(upcoming).length} upcoming retreats · ${all.filter((x) => x.prof).length} in Sanctuary`;
+    const sub = `${all.length} clients · ${all.filter(upcoming).length} upcoming retreats · ${all.filter((x) => x.prof).length} in Serene Portal`;
     if (!p) return head("Clients", "Clients", sub) + `<div class="split">${list}<div class="empty">Pick a client on the left, or add a new one.</div></div>`;
     return head("Clients", draft ? "New client" : esc(nameOf(p)), draft ? "Fill in the card and save." : sub) + `<div class="split">${list}<div>${clientDetail(p)}</div></div>`;
   }
@@ -377,7 +377,7 @@
         ${sent.length ? `<div class="list">${sent.map((m) => `<div class="item"><div><b>${esc(m.subject)}</b> <span class="muted small">· ${fmtWhen(m.sent_at)}</span><p class="small muted mail-body">${esc(m.body || "")}</p></div></div>`).join("")}</div>` : `<p class="muted small">No emails sent from the admin yet.</p>`}</div>` + html;
     }
     if (!p.prof) {
-      html += `<div class="panel invite"><h3>Sanctuary access</h3><p class="muted">${esc(nameOf(p))} doesn't have a Sanctuary login yet. Invite them and their portal (services, protocols, retreats) appears here automatically.</p>
+      html += `<div class="panel invite"><h3>Serene Portal access</h3><p class="muted">${esc(nameOf(p))} doesn't have a Serene Portal login yet. Invite them and their portal (services, protocols, retreats) appears here automatically.</p>
         ${email ? `<ol class="small"><li>Copy their email: <b>${esc(email)}</b> <button class="btn ghost sm" type="button" data-copy="${esc(email)}">Copy</button></li><li>Open Supabase and click <b>Invite user</b>, paste the email, send.</li></ol>
         <div class="actions"><a class="btn sm" href="${DEMO ? "#" : INVITE_URL}" target="_blank" rel="noopener" data-invite>Open Supabase invite</a></div>` : `<p class="small">Add an email to the client card first.</p>`}</div>`;
       return html;
@@ -385,8 +385,8 @@
     const pr = p.prof, id = pr.id;
     const svc = DB.client_services.filter((x) => x.client_id === id), prot = DB.protocols.filter((x) => x.client_id === id), at = DB.retreat_attendance.filter((x) => x.client_id === id);
     const prEdit = editing.protocols ? { ...editing.protocols, tasks: (editing.protocols.protocol_tasks || []).slice().sort((a, b) => a.sort - b.sort).map((t) => t.text).join("\n") } : null;
-    html += `<div class="panel portal-head"><h3>Sanctuary portal</h3><p class="small muted">${[`<i class="dot on"></i>Has access`, pr.phone ? "Phone in profile: " + esc(pr.phone) : "", PREF[pr.contact_pref] ? "Prefers " + PREF[pr.contact_pref] : "", "Portal in " + (pr.language === "ru" ? "Russian" : "English")].filter(Boolean).join(" · ")}</p>
-        <p class="small muted">Everything below is visible to ${esc(nameOf(p))} in their Sanctuary.</p></div>
+    html += `<div class="panel portal-head"><h3>Serene Portal</h3><p class="small muted">${[`<i class="dot on"></i>Has access`, pr.phone ? "Phone in profile: " + esc(pr.phone) : "", PREF[pr.contact_pref] ? "Prefers " + PREF[pr.contact_pref] : "", "Portal in " + (pr.language === "ru" ? "Russian" : "English")].filter(Boolean).join(" · ")}</p>
+        <p class="small muted">Everything below is visible to ${esc(nameOf(p))} in their Serene Portal.</p></div>
       <div class="panel"><h3>Services</h3>${listHtml("client_services", svc, (r) => `<b>${esc(r.modality)}</b> <span class="muted small">· ${fmtDate(r.service_date)}</span>${r.notes ? `<p class="small muted">${esc(r.notes)}</p>` : ""}`)}</div>
       ${formHtml("client_services", editing.client_services ? "Edit service" : "Add a service", editing.client_services)}
       <div class="panel"><h3>Protocols</h3>${listHtml("protocols", prot, (r) => { const t = r.protocol_tasks || []; return `<b>${esc(r.title)}</b> <span class="pill ${esc(r.status)}">${esc(r.status)}</span>${r.phase ? `<p class="small muted">${esc(r.phase)}</p>` : ""}${t.length ? `<p class="small muted">${t.filter((x) => x.done).length} of ${t.length} checklist items done</p>` : ""}`; })}</div>
@@ -401,7 +401,7 @@
       `<div class="panel"><h3>All items</h3>${listHtml("library_items", DB.library_items, (r) => `<b>${esc(r.title)}</b> <span class="pill">${esc(r.kind)}</span>${r.published ? "" : ` <span class="pill paused">hidden</span>`}${r.description ? `<p class="small muted">${esc(r.description)}</p>` : ""}`)}</div>`;
   }
   function vModalities() {
-    return head("What you offer", "Modalities", "Shown to clients in their Sanctuary.") + formHtml("modalities", editing.modalities ? "Edit modality" : "Add a modality", editing.modalities) +
+    return head("What you offer", "Modalities", "Shown to clients in their Serene Portal.") + formHtml("modalities", editing.modalities ? "Edit modality" : "Add a modality", editing.modalities) +
       `<div class="panel"><h3>All modalities</h3>${listHtml("modalities", DB.modalities, (r) => `<b>${esc(r.title)}</b>${r.category ? ` <span class="muted small">· ${esc(r.category)}</span>` : ""}${r.active ? "" : ` <span class="pill paused">hidden</span>`}`)}</div>`;
   }
   function vRetreats() {
