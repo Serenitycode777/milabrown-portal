@@ -74,7 +74,7 @@
   <header class="top">
     <div class="in">
       <a class="brand" href="#home" data-go="home">Serene Portal<small>Mila Brown</small></a>
-      <div class="who"><button class="who-btn" type="button" data-go="profile" id="who-name"></button><button class="btn ghost sm" id="logout" type="button" data-i="signOut"></button></div>
+      <div class="who"><button class="who-btn" type="button" data-go="profile" id="who-name"></button><a class="btn sm admin-link" id="admin-link" href="/admin/" hidden>← Admin</a><button class="btn ghost sm" id="logout" type="button" data-i="signOut"></button></div>
     </div>
   </header>
   <div class="shell">
@@ -401,6 +401,9 @@
     $("boot").hidden = true; $("login").hidden = true; $("app").hidden = false;
     whoName();
     go((location.hash || "#home").slice(1));
+    // Mila's own account: show a way back to the admin
+    if (DEMO) $("admin-link").hidden = false;
+    else sb.rpc("is_admin").then(({ data }) => { $("admin-link").hidden = !data; }, () => {});
   }
   function whoName() { $("who-name").textContent = D.profile.full_name || D.profile.email || ""; }
 
