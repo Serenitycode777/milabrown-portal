@@ -17,6 +17,7 @@
     window.__AUTH_ERR = h.get("error_code") || q.get("error_code") || h.get("error") || q.get("error") || ""; })();</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js"></script>
 <script src="common.js"></script>
+<script src="mb-book.js"></script>
 </head>
 <body>
 
@@ -553,13 +554,13 @@
   function book() {
     const t = T();
     return head(t.bookEyebrow, t.nav.book, t.bookText) +
-      `<div class="panel booking-panel"><div class="mindbody-widget" data-widget-type="Appointments" data-widget-id="b4745589b68"><p class="muted small">${t.bookLoading}</p></div></div>`;
+      `<div class="panel booking-panel"><div id="mb-book"><p class="muted small">${t.bookLoading}</p></div></div>`;
   }
   function loadBookingWidget() {
-    if (current !== "book" || DEMO) return;
-    document.querySelectorAll('script[data-mb-widget]').forEach((x) => x.remove());
-    const sc = document.createElement("script"); sc.async = true; sc.dataset.mbWidget = "1";
-    sc.src = "https://brandedweb.mindbodyonline.com/embed/widget.js"; document.body.appendChild(sc);
+    if (current !== "book" || !window.MBBook) return;
+    // Booking form: open times from Mindbody, booked without a Mindbody login (falls back to the Mindbody widget until the API is live)
+    const p = D.profile || {}, parts = (p.full_name || "").trim().split(/\s+/);
+    MBBook.mount($("mb-book"), { lang: getLang(), demo: DEMO, prefill: { first: parts[0] || "", last: parts.slice(1).join(" "), email: p.email || "", phone: p.phone || "" } });
   }
   const CONSULT = /ayurveda|jyotish|vedic|vedapulse|coaching|mentor|sound/i;
 
