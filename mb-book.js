@@ -231,7 +231,11 @@
       st.busy = false; draw();
     });
 
-    if (st.svc) load(); else draw();
+    if (!o.demo && !o.admin) {
+      // Clients only see the new form once Mindbody is live; until then, the Mindbody widget straight away
+      el.innerHTML = `<p class="muted"><span class="spin"></span>${esc(t.loading)}</p>`;
+      call({ action: "ping" }).then((r) => { if (r.sandbox) fallback(); else if (st.svc) load(); else draw(); }, () => fallback());
+    } else if (st.svc) load(); else draw();
     return { setService(id) { st.svc = id; load(); } };
   }
 
