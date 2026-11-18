@@ -12,6 +12,7 @@
 <link rel="stylesheet" href="../sanctuary.css">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.119.0/dist/umd/supabase.js"></script>
 <script src="../common.js"></script>
+<script src="../mb-book.js"></script>
 </head>
 <body>
 <div class="demo-flag" id="demo-flag" hidden>Admin preview with sample data · changes are not saved</div>
@@ -60,6 +61,10 @@
   const DB = { inquiries: [], milabrownclients: [], profiles: [], modalities: [], library_items: [], retreats: [], client_services: [], protocols: [], retreat_attendance: [], email_log: [] };
   const PORTAL_TABLES = ["client_services", "protocols", "retreat_attendance"];
   const bucketOf = (table) => table === "protocols" ? "protocols" : "library";
+  // A client's documents are library items shared only with them: same rows, shown on the client page
+  const realTable = (t) => t === "client_docs" ? "library_items" : t;
+  Object.defineProperty(DB, "client_docs", { get: () => DB.library_items, set: (v) => { DB.library_items = v; } });
+  const personal = (r, id) => Array.isArray(r.client_ids) && r.client_ids.includes(id);
 
   $("login-flower").innerHTML = flower("flower");
 
@@ -92,6 +97,14 @@
       { k: "body", t: "textarea", l: "Mantra text (for mantras)", wide: true },
       { k: "url", t: "url", l: "Link (webinar, video or page)", wide: true },
       { k: "file_path", t: "file", l: "File (PDF, audio)", bucket: "library", wide: true },
+    ],
+    client_docs: [
+      { k: "title", t: "text", l: "Title", req: true, wide: true },
+      { k: "kind", t: "select", l: "Type", o: [["pdf", "Document / PDF"], ["audio", "Audio"], ["mantra", "Mantra"], ["webinar", "Video / webinar"], ["link", "Link"]] },
+      { k: "file_path", t: "file", l: "File (PDF, image, audio)", bucket: "library", wide: true },
+      { k: "url", t: "url", l: "Or a link (video, Google Doc, page)", wide: true },
+      { k: "description", t: "textarea", l: "Short note for the client", wide: true },
+      { k: "body", t: "textarea", l: "Mantra text (for mantras)", wide: true },
     ],
     modalities: [
       { k: "title", t: "text", l: "Title", req: true },
@@ -257,7 +270,8 @@
       if (i >= 0) list[i] = row; else list.unshift(row);
       return row;
     }
-    return id ? q(sb.from(table).update(values).eq("id", id).select().single()) : q(sb.from(table).insert(values).select().single());
+    const t = realTable(table);
+    return id ? q(sb.from(t).update(values).eq("id", id).select().single()) : q(sb.from(t).insert(values).select().single());
   }
 
   async function save(table, profileId) {
@@ -266,6 +280,11 @@
     let tasks = null;
     if (table === "protocols") { tasks = (out.tasks || "").split("\n").map((x) => x.trim()).filter(Boolean); delete out.tasks; }
     if (PORTAL_TABLES.includes(table)) out.client_id = profileId;
+    if (table === "client_docs") {
+      if (!profileId) throw new Error("This client needs a Serene Portal login first.");
+      if (!out.file_path && !files.file_path && !out.url && !out.body && !(row && (row.file_path || row.url))) throw new Error("Add a file, a link or the mantra text.");
+      if (!row || !row.id) { out.client_ids = [profileId]; out.published = true; }
+    }
     if (table === "retreat_attendance") { if (!out.retreat_id) out.retreat_id = null; if (!out.retreat_id && !out.title) throw new Error("Choose a retreat or type a title."); }
     for (const [k, v] of Object.entries(files)) out[k] = await upload(v.bucket, v.file, v.bucket === "protocols" ? profileId : "");
     const saved = await write(table, row && row.id, out);
@@ -284,7 +303,7 @@
     const row = DB[table].find((x) => x.id === id);
     if (DEMO) DB[table] = DB[table].filter((x) => x.id !== id);
     else {
-      await q(sb.from(table).delete().eq("id", id));
+      await q(sb.from(realTable(table)).delete().eq("id", id));
       if (row && row.file_path) await sb.storage.from(bucketOf(table)).remove([row.file_path]);
       if (PORTAL_TABLES.includes(table)) await loadPortal(profileId); else await loadAll();
     }
@@ -305,6 +324,7 @@
     const fresh = DB.inquiries.filter((r) => !r.archived && !r.contacted).length;
     $("nav").innerHTML = NAV.map(([k, t, ic]) => `<button type="button" data-tab="${k}" aria-current="${k === tab ? "page" : "false"}"><svg viewBox="0 0 24 24">${ic}</svg>${t}${k === "requests" && fresh ? `<span class="count badge-new">${fresh}</span>` : ""}</button>`).join("");
     $("view").innerHTML = ({ requests: vRequests, clients: vClients, library: vLibrary, modalities: vModalities, retreats: vRetreats, booking: vBooking, emails: vEmails, archive: vArchive })[tab]();
+    if (tab === "booking" && $("mb-book-slot")) $("mb-book-slot").appendChild(bookForm());
   }
 
   // ---------- email (sent from hello@milabrown.pro through the send-email function) ----------
@@ -484,6 +504,7 @@
     return `<details class="fold-add" data-fold="${key}" ${openFolds.has(key) ? "open" : ""}><summary><span class="plus" aria-hidden="true">+</span> ${label}</summary>${bare(formHtml(table, title, row))}</details>`;
   }
 
+  const KIND = { pdf: "Document", audio: "Audio", mantra: "Mantra", webinar: "Video", link: "Link" };
   function clientDetail(p) {
     const crmRow = p.crm || (draft ? { ...draft } : p.prof ? { name: p.prof.full_name, email: p.prof.email, phone: p.prof.phone } : null);
     const btns = p.crm ? `<button class="btn ghost" type="button" data-archive="milabrownclients" data-id="${p.crm.id}">Archive</button><button class="btn danger" type="button" data-del="milabrownclients" data-id="${p.crm.id}">Delete card</button>` : draft ? `<button class="btn ghost" type="button" data-canceldraft>Cancel</button>` : "";
@@ -505,6 +526,7 @@
       return html;
     }
     const pr = p.prof, id = pr.id;
+    const docs = DB.library_items.filter((x) => personal(x, id));
     const svc = DB.client_services.filter((x) => x.client_id === id), prot = DB.protocols.filter((x) => x.client_id === id), at = DB.retreat_attendance.filter((x) => x.client_id === id);
     const prEdit = editing.protocols ? { ...editing.protocols, tasks: (editing.protocols.protocol_tasks || []).slice().sort((a, b) => a.sort - b.sort).map((t) => t.text).join("\n") } : null;
     const n = (k, one, many) => k ? `${k} ${k === 1 ? one : many}` : "None yet";
@@ -515,6 +537,10 @@
       fold("prot", "Protocols", n(prot.length, "protocol", "protocols") + (prot.filter((x) => x.status === "active").length ? ` · ${prot.filter((x) => x.status === "active").length} active` : ""),
         listHtml("protocols", prot, (r) => { const t = r.protocol_tasks || []; return `<b>${esc(r.title)}</b> <span class="pill ${esc(r.status)}">${esc(r.status)}</span>${r.phase ? `<p class="small muted">${esc(r.phase)}</p>` : ""}${t.length ? `<p class="small muted">${t.filter((x) => x.done).length} of ${t.length} checklist items done</p>` : ""}`; }) +
         addBox("prot-add", "Add a protocol", "protocols", prEdit ? "Edit protocol" : "Add a protocol", prEdit), !!editing.protocols) +
+      fold("docs", "Documents", n(docs.length, "document", "documents") + (docs.length ? " · in their Library → My Docs" : ""),
+        `<p class="small muted" style="margin:0 0 10px">Only ${esc(nameOf(p))} sees these, in Serene Portal → Library → My Docs.</p>` +
+        listHtml("client_docs", docs, (r) => { const others = r.client_ids.filter((x) => x !== id).length; return `<b>${esc(r.title)}</b> <span class="pill">${esc(KIND[r.kind] || r.kind)}</span>${r.published ? "" : ` <span class="pill paused">hidden</span>`} <span class="muted small">· ${fmtDate((r.created_at || "").slice(0, 10))}</span>${others ? ` <span class="small muted">· also shared with ${others} other client${others === 1 ? "" : "s"}</span>` : ""}${r.description ? `<p class="small muted">${esc(r.description)}</p>` : ""}`; }) +
+        addBox("docs-add", "Add a document", "client_docs", editing.client_docs ? "Edit document" : "Add a document", editing.client_docs), !!editing.client_docs) +
       fold("ret", "Retreats", n(at.length, "retreat", "retreats"),
         listHtml("retreat_attendance", at, (r) => `<b>${esc(r.title || (DB.retreats.find((x) => x.id === r.retreat_id) || {}).title || "Retreat")}</b> <span class="pill ${esc(r.status)}">${esc(r.status)}</span> <span class="muted small">${fmtDate(r.attended_on)}</span>`) +
         addBox("ret-add", "Add a retreat", "retreat_attendance", editing.retreat_attendance ? "Edit retreat" : "Add a retreat", editing.retreat_attendance), !!editing.retreat_attendance);
@@ -552,12 +578,23 @@
     { id: 16, name: "Sound Healing Bath · Private Session", meta: "60 min · $99" },
   ];
   const svcLink = (id) => `${MB_WIDGET}/schedule?locationId=1&serviceId=${id}&staffId=3`;
+  // The booking form is made once and kept, so a half-filled booking survives other changes on the page
+  let bookEl = null;
+  function bookForm() {
+    if (bookEl || !window.MBBook) return bookEl || document.createTextNode("");
+    bookEl = document.createElement("div");
+    const ppl = people().filter((p) => !(p.crm && p.crm.archived)).map((p) => ({ name: nameOf(p), email: ((p.crm && p.crm.email) || (p.prof && p.prof.email) || "").trim(), phone: (p.crm && p.crm.phone) || (p.prof && p.prof.phone) || "" }))
+      .filter((p) => p.email && !/@|^\(no name\)$/.test(p.name)).sort((a, b) => a.name.localeCompare(b.name));
+    MBBook.mount(bookEl, { admin: true, demo: DEMO, people: ppl, getToken: async () => { if (!sb) return null; const { data } = await sb.auth.getSession(); return data.session && data.session.access_token; } });
+    return bookEl;
+  }
   function vBooking() {
     const all = people().filter((p) => !(p.crm && p.crm.archived)).map((p) => ({ key: p.key, name: nameOf(p), email: (p.crm && p.crm.email) || (p.prof && p.prof.email) || "" })).filter((p) => p.email).sort((a, b) => a.name.localeCompare(b.name));
     const s = SERVICES.find((x) => String(x.id) === String(bookSvc));
     return head("Mindbody calendar", "Booking", "Schedule a session yourself, or send a client a link to pick a time for one service.") +
-      `<div class="panel"><div class="req-top"><h3>Schedule a session yourself</h3><a class="btn sm" href="${MB_BOOK}" target="_blank" rel="noopener">Open Mindbody appointment book ↗</a></div>
-        <p class="small muted">Opens your Mindbody calendar in a new tab. Pick the time, then the client and service. You can book any time there, including sooner than the 72-hour online rule.</p></div>
+      `<div class="panel"><div class="req-top"><h3>Book a session for a client</h3><a class="btn ghost sm" href="${MB_BOOK}" target="_blank" rel="noopener">Mindbody appointment book ↗</a></div>
+        <p class="small muted">Pick the session, a time and the client. It goes straight into Mindbody and the client gets the confirmation email. You can book from 1 hour ahead here.</p>
+        <div id="mb-book-slot"></div></div>
       <div class="panel"><h3>Send a booking link</h3>
         <div class="fgrid">
           <label for="bk-svc">Service<select id="bk-svc" data-bk="svc"><option value="">Choose a service…</option>${SERVICES.map((x) => `<option value="${x.id}" ${String(x.id) === String(bookSvc) ? "selected" : ""}>${esc(x.name)} · ${esc(x.meta)}</option>`).join("")}</select></label>
@@ -566,8 +603,7 @@
         </div>
         ${s ? `<p class="small">Booking link for <b>${esc(s.name)}</b>: <a href="${svcLink(s.id)}" target="_blank" rel="noopener">open it ↗</a></p>` : `<p class="small muted">Choose a service to get its link.</p>`}
         <div class="actions"><button class="btn sm" type="button" data-bkmail ${s ? "" : "disabled"}>✉ Email link to client</button><button class="btn ghost sm" type="button" data-bkcopy ${s ? "" : "disabled"}>Copy link</button></div></div>
-      <div class="panel"><h3>All links</h3><div class="list">${SERVICES.map((x) => `<div class="item"><div><b>${esc(x.name)}</b> <span class="muted small">· ${esc(x.meta)}</span></div><div class="actions" style="margin:0;flex:none"><a class="btn ghost sm" href="${svcLink(x.id)}" target="_blank" rel="noopener">Open</a><button class="btn ghost sm" type="button" data-copy="${svcLink(x.id)}">Copy</button></div></div>`).join("")}</div></div>
-      <div class="panel booking-panel"><h3>Calendar as clients see it</h3><iframe class="mb-frame" title="Booking calendar" src="${MB_WIDGET}/services" loading="lazy"></iframe></div>`;
+      <div class="panel"><h3>All links</h3><div class="list">${SERVICES.map((x) => `<div class="item"><div><b>${esc(x.name)}</b> <span class="muted small">· ${esc(x.meta)}</span></div><div class="actions" style="margin:0;flex:none"><a class="btn ghost sm" href="${svcLink(x.id)}" target="_blank" rel="noopener">Open</a><button class="btn ghost sm" type="button" data-copy="${svcLink(x.id)}">Copy</button></div></div>`).join("")}</div></div>`;
   }
 
   function vEmails() {
