@@ -330,12 +330,49 @@
   // ---------- email (sent from hello@milabrown.pro through the send-email function) ----------
   const mailsTo = (em) => em ? DB.email_log.filter((m) => (m.to_email || "").toLowerCase() === em.toLowerCase()) : [];
   const lastMail = (em) => mailsTo(em)[0];
+  // ---------- formatted message editor (font, size, bold, colour, lists, links, emoji) ----------
+  const COPY_TO = "milabrown.pro@gmail.com";
+  const EMOJI = "🌿 🌸 🌺 🌷 🌼 🌞 🌙 🌕 ✨ ⭐ 💫 🔥 💧 🌊 🍃 🌱 🕉️ 🙏 🧘‍♀️ 💆‍♀️ 🛁 🍵 💜 💛 🤍 💚 ❤️ 😊 🥰 😌 🤗 👋 👉 ✅ 📅 ⏰ 📍 📞 ✉️ 🎁 🎶 🔔".split(" ");
+  const rteHtml = (id) => `<div class="rte"><div class="rte-bar" role="toolbar" aria-label="Text formatting">
+      <select data-rcmd="fontName" aria-label="Font"><option value="">Font</option><option value="Jost">Clean</option><option value="Cormorant Garamond">Elegant</option></select>
+      <select data-rcmd="fontSize" aria-label="Size"><option value="">Size</option><option value="2">Small</option><option value="3">Normal</option><option value="5">Large</option><option value="6">Title</option></select>
+      <button type="button" data-rcmd="bold" title="Bold" aria-label="Bold"><b>B</b></button><button type="button" data-rcmd="italic" title="Italic" aria-label="Italic"><i>I</i></button><button type="button" data-rcmd="underline" title="Underline" aria-label="Underline"><u>U</u></button>
+      <span class="rte-sep"></span>${[["#2e2840", "Ink"], ["#5b4b88", "Indigo"], ["#336575", "Teal"], ["#b8913f", "Gold"], ["#a33a3a", "Red"]].map(([c, n]) => `<button type="button" class="rte-sw" data-rcmd="foreColor" data-v="${c}" title="${n}" aria-label="${n} text" style="--c:${c}"></button>`).join("")}
+      <span class="rte-sep"></span><button type="button" data-rcmd="insertUnorderedList" title="Bullet list" aria-label="Bullet list">••</button><button type="button" data-rcmd="insertOrderedList" title="Numbered list" aria-label="Numbered list">1.</button><button type="button" data-rcmd="link" title="Add link" aria-label="Add link">🔗</button>
+      <button type="button" data-rcmd="emoji" title="Emoji" aria-label="Emoji" aria-expanded="false">😊</button><button type="button" data-rcmd="removeFormat" title="Clear formatting" aria-label="Clear formatting">⨯</button></div>
+    <div class="rte-emoji" hidden>${EMOJI.map((x) => `<button type="button" data-remoji="${x}">${x}</button>`).join("")}</div>
+    <div class="rte-area" id="${id}" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Message"></div></div>`;
+  const rteSet = (el, text) => { el.innerHTML = text.split("\n").map((l) => l ? esc(l) : "<br>").map((l) => `<div>${l}</div>`).join(""); };
+  const rteText = (el) => el.innerText.replace(/\n{3,}/g, "\n\n").trim();
+  const rteVal = (el) => ({ text: rteText(el), html: el.innerHTML });
+  let rteRange = null;
+  document.addEventListener("selectionchange", () => { const s = getSelection(); if (s.rangeCount && s.anchorNode && s.anchorNode.parentElement && s.anchorNode.parentElement.closest(".rte-area")) rteRange = s.getRangeAt(0).cloneRange(); else if (s.rangeCount && s.anchorNode && s.anchorNode.closest && s.anchorNode.closest(".rte-area")) rteRange = s.getRangeAt(0).cloneRange(); });
+  function rteDo(box, cmd, v) {
+    const area = box.querySelector(".rte-area"); area.focus();
+    if (rteRange && area.contains(rteRange.startContainer)) { const s = getSelection(); s.removeAllRanges(); s.addRange(rteRange); }
+    try { document.execCommand("styleWithCSS", false, false); } catch {}
+    document.execCommand(cmd, false, v);
+  }
+  document.addEventListener("mousedown", (e) => { if (e.target.closest(".rte-bar button, .rte-emoji button")) e.preventDefault(); });
+  document.addEventListener("click", (e) => {
+    const b = e.target.closest(".rte-bar button, .rte-emoji button"); if (!b) return;
+    const box = b.closest(".rte"), pop = box.querySelector(".rte-emoji");
+    if (b.dataset.remoji) { rteDo(box, "insertText", b.dataset.remoji); return; }
+    const c = b.dataset.rcmd;
+    if (c === "emoji") { pop.hidden = !pop.hidden; b.setAttribute("aria-expanded", String(!pop.hidden)); return; }
+    if (c === "link") { const u = prompt("Link address (https://…)", "https://"); if (u && /^(https?:\/\/|mailto:)\S+$/i.test(u.trim())) { const sel = getSelection(); if (rteRange && rteRange.collapsed) rteDo(box, "insertHTML", `<a href="${esc(u.trim())}">${esc(u.trim())}</a>`); else rteDo(box, "createLink", u.trim()); } return; }
+    rteDo(box, c, b.dataset.v);
+  });
+  document.addEventListener("change", (e) => { const sel = e.target.closest(".rte-bar select"); if (!sel || !sel.value) return; rteDo(sel.closest(".rte"), sel.dataset.rcmd, sel.value); sel.value = ""; });
+  // pasted text comes in plain, so outside styles don't sneak into emails
+  document.addEventListener("paste", (e) => { if (!e.target.closest || !e.target.closest(".rte-area")) return; e.preventDefault(); const t = (e.clipboardData || window.clipboardData).getData("text/plain"); document.execCommand("insertText", false, t); });
   document.body.insertAdjacentHTML("beforeend", `<dialog class="mail-dlg" id="mail-dlg" aria-labelledby="mail-h">
     <form method="dialog" id="mail-form" novalidate>
       <div class="req-top"><h3 id="mail-h">Send email</h3><button class="linkbtn" type="button" data-mailclose aria-label="Close">✕</button></div>
       <p class="small muted">From <b>Mila Brown &lt;hello@milabrown.pro&gt;</b> to <b id="mail-to"></b></p>
       <label for="mail-subj">Subject<input id="mail-subj" type="text" maxlength="200" required></label>
-      <label for="mail-msg">Message<textarea id="mail-msg" rows="10" maxlength="10000" required></textarea></label>
+      <div class="rte-wrap"><span class="rte-label">Message</span>${rteHtml("mail-msg")}</div>
+      <label class="check"><input type="checkbox" id="mail-cc" checked> <span>CC me at ${COPY_TO}</span></label>
       <p class="small muted">Sent in your Mila Brown email design, with your signature and a link to milabrown.pro.</p>
       <p class="note err" id="mail-err" role="alert" hidden></p>
       <div class="actions"><button class="btn" type="submit" id="mail-send">Send</button><button class="btn ghost" type="button" data-mailclose>Cancel</button></div>
@@ -345,19 +382,19 @@
     mailCtx = { to, name, inq };
     const first = (name || "").trim().split(/\s+/)[0] || "";
     $("mail-to").textContent = name ? `${name} <${to}>` : to;
-    $("mail-subj").value = (preset && preset.subject) || ""; $("mail-msg").value = (first && !/^main site|^test/i.test(name) ? `Hi ${first},\n\n` : "Hello,\n\n") + ((preset && preset.body) || "");
+    $("mail-subj").value = (preset && preset.subject) || ""; rteSet($("mail-msg"), (first && !/^main site|^test/i.test(name) ? `Hi ${first},\n\n` : "Hello,\n\n") + ((preset && preset.body) || "")); $("mail-cc").checked = true; document.querySelectorAll("#mail-dlg .rte-emoji").forEach((x) => (x.hidden = true));
     $("mail-err").hidden = true; $("mail-send").disabled = false; $("mail-send").textContent = "Send";
     $("mail-dlg").showModal(); $("mail-subj").focus();
   }
   $("mail-form").addEventListener("submit", async (e) => {
     e.preventDefault();
-    const subject = $("mail-subj").value.trim(), message = $("mail-msg").value.trim(), err = $("mail-err"), btn = $("mail-send");
+    const subject = $("mail-subj").value.trim(), { text: message, html } = rteVal($("mail-msg")), cc = $("mail-cc").checked, err = $("mail-err"), btn = $("mail-send");
     err.hidden = true;
     if (!subject || !message) { err.textContent = "Please add a subject and a message."; err.hidden = false; return; }
     btn.disabled = true; btn.textContent = "Sending…";
     let row = { to_email: mailCtx.to, to_name: mailCtx.name || null, subject, body: message, inquiry_id: mailCtx.inq || null, sent_at: new Date().toISOString() };
     if (!DEMO) {
-      const { data, error } = await sb.functions.invoke("smart-action", { body: { to: mailCtx.to, name: mailCtx.name || "", subject, message, inquiry_id: mailCtx.inq || null } });
+      const { data, error } = await sb.functions.invoke("smart-action", { body: { to: mailCtx.to, name: mailCtx.name || "", subject, message, html, cc, inquiry_id: mailCtx.inq || null } });
       let msg = data && data.error;
       if (error) { try { const j = await error.context.json(); msg = j.error || error.message; } catch { msg = error.message; } }
       if (msg || !data || !data.ok) { btn.disabled = false; btn.textContent = "Send"; err.textContent = "Not sent: " + (msg || "unknown error") + (/not found|404|failed to send a request/i.test(msg || "") ? ". Is the send-email function set up in Supabase?" : ""); err.hidden = false; return; }
@@ -377,8 +414,9 @@
       <div id="bulk-pick"></div>
       <p class="small bulk-sum" id="bulk-sum" aria-live="polite"></p>
       <label for="bulk-subj">Subject<input id="bulk-subj" type="text" maxlength="200" required></label>
-      <label for="bulk-msg">Message<textarea id="bulk-msg" rows="9" maxlength="10000" required></textarea></label>
+      <div class="rte-wrap"><span class="rte-label">Message</span>${rteHtml("bulk-msg")}</div>
       <label class="check"><input type="checkbox" id="bulk-hi" checked> <span>Start each email with “Hi <i>first name</i>,”</span></label>
+      <label class="check"><input type="checkbox" id="bulk-cc"> <span>CC me at ${COPY_TO} <span class="muted">(one copy for each person)</span></span></label>
       <p class="note err" id="bulk-err" role="alert" hidden></p>
       <div class="actions"><button class="btn" type="submit" id="bulk-send">Send</button><button class="btn ghost" type="button" data-bulkclose>Cancel</button></div>
     </form></dialog>`);
@@ -403,7 +441,7 @@
   }
   function openBulk() {
     bulk = { mode: "all", tags: [], picked: new Set(), find: "", busy: false };
-    $("bulk-subj").value = ""; $("bulk-msg").value = ""; $("bulk-hi").checked = true; $("bulk-err").hidden = true;
+    $("bulk-subj").value = ""; $("bulk-msg").innerHTML = ""; $("bulk-hi").checked = true; $("bulk-cc").checked = false; document.querySelectorAll("#bulk-dlg .rte-emoji").forEach((x) => (x.hidden = true)); $("bulk-err").hidden = true;
     bulkDraw(); $("bulk-dlg").showModal(); $("bulk-subj").focus();
   }
   $("bulk-dlg").addEventListener("click", (e) => {
@@ -423,7 +461,7 @@
   });
   $("bulk-form").addEventListener("submit", async (e) => {
     e.preventDefault(); if (bulk.busy) return;
-    const subject = $("bulk-subj").value.trim(), body = $("bulk-msg").value.trim(), hi = $("bulk-hi").checked, err = $("bulk-err"), btn = $("bulk-send"), list = bulkList();
+    const subject = $("bulk-subj").value.trim(), { text: body, html: bodyHtml } = rteVal($("bulk-msg")), cc = $("bulk-cc").checked, hi = $("bulk-hi").checked, err = $("bulk-err"), btn = $("bulk-send"), list = bulkList();
     err.hidden = true;
     if (!list.length) { err.textContent = "Choose who gets this email."; err.hidden = false; return; }
     if (!subject || !body) { err.textContent = "Please add a subject and a message."; err.hidden = false; return; }
@@ -432,12 +470,13 @@
     for (let i = 0; i < list.length; i++) {
       const p = list[i], first = (p.name || "").trim().split(/\s+/)[0] || "";
       const message = (hi ? (first ? `Hi ${first},` : "Hello,") + "\n\n" : "") + body;
+      const html = (hi ? `<div>${esc(first ? `Hi ${first},` : "Hello,")}</div><div><br></div>` : "") + bodyHtml;
       btn.textContent = `Sending ${i + 1} of ${list.length}…`;
       let row = { to_email: p.email, to_name: p.name || null, subject, body: message, sent_at: new Date().toISOString() };
       if (!DEMO) {
         let msg = "";
         try {
-          const { data, error } = await sb.functions.invoke("smart-action", { body: { to: p.email, name: p.name || "", subject, message, inquiry_id: null } });
+          const { data, error } = await sb.functions.invoke("smart-action", { body: { to: p.email, name: p.name || "", subject, message, html, cc, inquiry_id: null } });
           msg = data && data.error;
           if (error) { try { const j = await error.context.json(); msg = j.error || error.message; } catch { msg = error.message; } }
           if (!msg && (!data || !data.ok)) msg = "unknown error";
