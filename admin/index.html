@@ -55,7 +55,7 @@
   const CATS = ["VIP", "RUS", "ENG", "Serenity Moon"];
   const PREF = { email: "Email", phone: "Phone call", whatsapp: "WhatsApp", telegram: "Telegram" };
 
-  let tab = "requests", sel = null, draft = null, editing = {}, reqFilter = "new", cliFilter = "all", arcFilter = "all", libAud = "all", libWho = "";
+  let tab = "requests", sel = null, draft = null, editing = {}, reqFilter = "new", cliFilter = "all", arcFilter = "all", libAud = "all", libWho = "", emFilter = "all";
   const qs = { requests: "", clients: "", archive: "", emails: "" };
   let bookSvc = "", bookWho = "", bookEmail = "";
   const DB = { inquiries: [], milabrownclients: [], profiles: [], modalities: [], library_items: [], retreats: [], client_services: [], protocols: [], retreat_attendance: [], email_log: [] };
@@ -647,11 +647,16 @@
 
   function vEmails() {
     const s = qs.emails.toLowerCase();
-    const rows = DB.email_log.filter((m) => !s || [m.to_name, m.to_email, m.subject, m.body].join(" ").toLowerCase().includes(s));
+    // This week (from Monday) and this month, by the day the email was sent
+    const now = new Date(), dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekStart = new Date(dayStart.getTime() - ((dayStart.getDay() + 6) % 7) * 864e5), monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const inPeriod = (m, f) => f === "all" || new Date(m.sent_at) >= (f === "week" ? weekStart : monthStart);
+    const nOf = (f) => DB.email_log.filter((m) => inPeriod(m, f)).length;
+    const rows = DB.email_log.filter((m) => inPeriod(m, emFilter) && (!s || [m.to_name, m.to_email, m.subject, m.body].join(" ").toLowerCase().includes(s)));
     const people_ = people();
     const who = (m) => people_.find((p) => [p.crm && p.crm.email, p.prof && p.prof.email].some((e) => e && e.toLowerCase() === (m.to_email || "").toLowerCase()));
     return head("Sent from hello@milabrown.pro", "Emails", `${DB.email_log.length} email${DB.email_log.length === 1 ? "" : "s"} sent from the admin. Newest first; click one to read it.`) +
-      `<div class="toolbar">${search("emails", "Search name, email, subject…")}<button class="btn sm" type="button" data-newmail>✉ New email</button></div>
+      `<div class="toolbar">${chips("em", emFilter, [["week", `This week · ${nOf("week")}`], ["month", `This month · ${nOf("month")}`], ["all", `All · ${DB.email_log.length}`]])}${search("emails", "Search name, email, subject…")}<button class="btn sm" type="button" data-newmail>✉ New email</button></div>
       <div class="stack">${rows.map((m) => { const p = who(m); return `<details class="card mail-row"><summary><div class="req-top"><h3>${esc(m.subject || "(no subject)")}</h3><span class="small muted">${fmtWhen(m.sent_at)}</span></div>
         <p class="small">To <b>${esc(m.to_name || m.to_email)}</b>${m.to_name ? ` <span class="muted">&lt;${esc(m.to_email)}&gt;</span>` : ""}</p></summary>
         <p class="mail-full">${esc(m.body || "")}</p>
@@ -698,7 +703,7 @@
     if ((el = T("[data-tab]"))) { tab = el.dataset.tab; editing = {}; draft = null; render(); return; }
     if ((el = T("[data-sel]"))) { selectPerson(el.dataset.sel); return; }
     if ((el = T("[data-openclient]"))) { tab = "clients"; selectPerson(el.dataset.openclient); return; }
-    if ((el = T("[data-chip]"))) { const v = el.dataset.v; if (el.dataset.chip === "req") reqFilter = v; else if (el.dataset.chip === "cli") cliFilter = v; else if (el.dataset.chip === "lib") { libAud = v; if (v !== "own") libWho = ""; } else arcFilter = v; render(); return; }
+    if ((el = T("[data-chip]"))) { const v = el.dataset.v; if (el.dataset.chip === "req") reqFilter = v; else if (el.dataset.chip === "cli") cliFilter = v; else if (el.dataset.chip === "lib") { libAud = v; if (v !== "own") libWho = ""; } else if (el.dataset.chip === "em") emFilter = v; else arcFilter = v; render(); return; }
     if (T("[data-newclient]")) { draft = {}; sel = null; editing = {}; render(); return; }
     if (T("[data-canceldraft]")) { draft = null; render(); return; }
     if ((el = T("[data-confirm]"))) {
