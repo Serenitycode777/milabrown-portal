@@ -13,3 +13,9 @@ entrypoint = "./functions/smart-action/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/mindbody/index.ts"
+
+# Inbox: copies replies to hello@milabrown.pro from Gmail into the admin (read-only, admin only).
+[functions.mail-inbox]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/mail-inbox/index.ts"
