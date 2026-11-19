@@ -356,3 +356,11 @@ input[type=radio]{width:18px;height:18px;padding:0;accent-color:var(--indigo);fl
 .rte-area a{color:var(--indigo)}
 .rte-area ul,.rte-area ol{margin:.3em 0;padding-left:1.4em}
 .bulk-dlg .rte-area{min-height:150px}
+/* inbox */
+.toolbar .tb-sep{width:1px;height:26px;background:var(--stone);margin:0 4px}
+.in-row.unread{border-color:rgba(91,75,136,.45);box-shadow:0 0 0 1px rgba(91,75,136,.25)}
+.in-row.unread h3{font-weight:600}
+.dot-new{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--aqua);margin-right:8px;vertical-align:middle}
+.inbox-note{background:rgba(184,145,63,.08);border-color:rgba(184,145,63,.35)}
+.conv .c-in{border-left:3px solid var(--aqua)}
+.conv .c-out{border-left:3px solid rgba(91,75,136,.35)}
