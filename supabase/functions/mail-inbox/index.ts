@@ -1,5 +1,5 @@
-// mail-inbox: brings emails sent to hello@milabrown.pro into the admin.
-// hello@milabrown.pro is delivered to the Gmail account milabrown.pro@gmail.com; only mail addressed to hello@ is copied.
+// mail-inbox: brings emails sent to mila@milabrown.pro into the admin.
+// mila@milabrown.pro is delivered to the Gmail account milabrown.pro@gmail.com; only mail addressed to mila@ is copied.
 // Read-only access to Gmail. Only the admin can run it. Attachments stay in Gmail (link "Open in Gmail").
 // Two ways to get mail in:
 //  1) push (used now): a small Google Apps Script in milabrown.pro@gmail.com sends new emails here every 10 minutes.
@@ -7,7 +7,7 @@
 //  2) pull (optional): Gmail API with secrets GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET, GMAIL_REFRESH_TOKEN.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const OWN = ["hello@milabrown.pro", "milabrown.pro@gmail.com"]; // mail from these is not a client reply
+const OWN = ["mila@milabrown.pro", "milabrown.pro@gmail.com"]; // mail from these is not a client reply
 const MAX_BODY = 20000; // characters kept per email
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
     const { data: last } = await sb.from("email_inbox").select("received_at").order("received_at", { ascending: false }).limit(1).maybeSingle();
     const since = last ? Math.floor(new Date(last.received_at).getTime() / 1000) - 2 * 86400 : Math.floor(Date.now() / 1000) - 30 * 86400;
     const token = await accessToken();
-    const list = await gmail(token, `messages?maxResults=100&q=${encodeURIComponent(`in:inbox (to:hello@milabrown.pro OR deliveredto:hello@milabrown.pro OR cc:hello@milabrown.pro) after:${since}`)}`);
+    const list = await gmail(token, `messages?maxResults=100&q=${encodeURIComponent(`in:inbox (to:mila@milabrown.pro OR deliveredto:mila@milabrown.pro OR cc:mila@milabrown.pro) after:${since}`)}`);
     const ids: string[] = (list.messages || []).map((m: any) => m.id);
     if (!ids.length) return json({ ok: true, added: 0 });
     const { data: have } = await sb.from("email_inbox").select("gmail_id").in("gmail_id", ids);
