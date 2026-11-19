@@ -55,10 +55,10 @@
   const CATS = ["VIP", "RUS", "ENG", "Serenity Moon"];
   const PREF = { email: "Email", phone: "Phone call", whatsapp: "WhatsApp", telegram: "Telegram" };
 
-  let tab = "requests", sel = null, draft = null, editing = {}, reqFilter = "new", cliFilter = "all", arcFilter = "all", libAud = "all", libWho = "", emFilter = "all";
+  let tab = "requests", sel = null, draft = null, editing = {}, reqFilter = "new", cliFilter = "all", arcFilter = "all", libAud = "all", libWho = "", emFilter = "all", emBox = "inbox", inboxState = DEMO ? "ok" : "";
   const qs = { requests: "", clients: "", archive: "", emails: "" };
   let bookSvc = "", bookWho = "", bookEmail = "";
-  const DB = { inquiries: [], milabrownclients: [], profiles: [], modalities: [], library_items: [], retreats: [], client_services: [], protocols: [], retreat_attendance: [], email_log: [] };
+  const DB = { inquiries: [], milabrownclients: [], profiles: [], modalities: [], library_items: [], retreats: [], client_services: [], protocols: [], retreat_attendance: [], email_log: [], email_inbox: [] };
   const PORTAL_TABLES = ["client_services", "protocols", "retreat_attendance"];
   const bucketOf = (table) => table === "protocols" ? "protocols" : "library";
   // A client's documents are library items shared only with them: same rows, shown on the client page
@@ -202,7 +202,7 @@
   async function loadAll() {
     if (DEMO) { if (!DB.profiles.length) demoData(); return; }
     const opt = (p) => p.then((r) => (r.error ? [] : r.data)); // old tables may be missing in a fresh project
-    const [inq, crm, p, m, l, r, em] = await Promise.all([
+    const [inq, crm, p, m, l, r, em, inb] = await Promise.all([
       opt(sb.from("inquiries").select("*").order("created_at", { ascending: false })),
       opt(sb.from("milabrownclients").select("*").order("created_at", { ascending: false })),
       q(sb.from("profiles").select("*").order("created_at", { ascending: false })),
@@ -210,8 +210,9 @@
       q(sb.from("library_items").select("*").order("created_at", { ascending: false })),
       q(sb.from("retreats").select("*").order("starts_on", { ascending: false, nullsFirst: true })),
       opt(sb.from("email_log").select("*").order("sent_at", { ascending: false })),
+      opt(sb.from("email_inbox").select("*").eq("archived", false).order("received_at", { ascending: false }).limit(500)),
     ]);
-    Object.assign(DB, { inquiries: inq, milabrownclients: crm, profiles: p, modalities: m, library_items: l, retreats: r, email_log: em });
+    Object.assign(DB, { inquiries: inq, milabrownclients: crm, profiles: p, modalities: m, library_items: l, retreats: r, email_log: em, email_inbox: inb });
   }
   async function loadPortal(profileId) {
     if (DEMO || !profileId) return;
@@ -233,6 +234,11 @@
       { id: "c1", name: "Anna Example", email: "anna@example.com", phone: "(984) 555-0110", format: "Full-day Immersion", retreat_date: "2026-08-22", client_since: "2026-08-01", categories: "VIP, ENG", modalities: "Sound Healing Bath, Kundalini Yoga, Infrared Sauna", notes: "Prefers mornings. Loves sound baths.", archived: false },
       { id: "c2", name: "Irina K.", email: "irina@example.com", phone: null, format: "Half-day Reset", retreat_date: "2026-12-06", client_since: "2026-11-01", categories: "RUS", modalities: "Ayurveda, Meditation", notes: "", archived: false },
       { id: "c3", name: "Yulia G.", email: null, format: "Half-day Reset", retreat_date: "2026-05-10", categories: "RUS, Serenity Moon", archived: true },
+    ];
+    DB.email_inbox = [
+      { id: "r1", gmail_id: "demo1", from_email: "anna@example.com", from_name: "Anna Example", subject: "Re: Your protocol for December", body: "Thank you, Mila! I started the morning routine today and already feel calmer. Could we move our session on the 12th to the afternoon?", received_at: new Date(Date.now() - 3 * 3600e3).toISOString(), read: false, has_attachments: false },
+      { id: "r2", gmail_id: "demo2", from_email: "olga@example.com", from_name: "Olga S.", subject: "Re: Your retreat request", body: "Hi Mila, December 6 works for me. I attached my intake form.", received_at: new Date(Date.now() - 2 * 864e5).toISOString(), read: true, has_attachments: true },
+      { id: "r3", gmail_id: "demo3", from_email: "newsletter@yogajournal.example", from_name: "Yoga Journal", subject: "This week in yoga", body: "Five poses for winter…", received_at: new Date(Date.now() - 5 * 864e5).toISOString(), read: true, has_attachments: false },
     ];
     DB.email_log = [
       { id: "e1", to_email: "anna@example.com", to_name: "Anna Example", subject: "Your protocol for December", body: "Hi Anna,\n\nI've added your new protocol to the Serene Portal. Start with the morning routine this week.\n\nSee you on the 12th.", sent_at: "2026-11-15T10:20:00" },
@@ -322,7 +328,7 @@
 
   function render() {
     const fresh = DB.inquiries.filter((r) => !r.archived && !r.contacted).length;
-    $("nav").innerHTML = NAV.map(([k, t, ic]) => `<button type="button" data-tab="${k}" aria-current="${k === tab ? "page" : "false"}"><svg viewBox="0 0 24 24">${ic}</svg>${t}${k === "requests" && fresh ? `<span class="count badge-new">${fresh}</span>` : ""}</button>`).join("");
+    $("nav").innerHTML = NAV.map(([k, t, ic]) => `<button type="button" data-tab="${k}" aria-current="${k === tab ? "page" : "false"}"><svg viewBox="0 0 24 24">${ic}</svg>${t}${k === "requests" && fresh ? `<span class="count badge-new">${fresh}</span>` : ""}${k === "emails" && unread() ? `<span class="count badge-new">${unread()}</span>` : ""}</button>`).join("");
     $("view").innerHTML = ({ requests: vRequests, clients: vClients, library: vLibrary, modalities: vModalities, retreats: vRetreats, booking: vBooking, emails: vEmails, archive: vArchive })[tab]();
     if (tab === "booking" && $("mb-book-slot")) $("mb-book-slot").appendChild(bookForm());
   }
@@ -330,6 +336,42 @@
   // ---------- email (sent from hello@milabrown.pro through the send-email function) ----------
   const mailsTo = (em) => em ? DB.email_log.filter((m) => (m.to_email || "").toLowerCase() === em.toLowerCase()) : [];
   const lastMail = (em) => mailsTo(em)[0];
+  // ---------- inbox: replies to hello@milabrown.pro, copied from Gmail by the mail-inbox function ----------
+  const repliesFrom = (em) => em ? DB.email_inbox.filter((m) => (m.from_email || "").toLowerCase() === em.toLowerCase()) : [];
+  const unread = () => DB.email_inbox.filter((m) => !m.read && !m.archived).length;
+  const gmailLink = (m) => `https://mail.google.com/mail/u/?authuser=milabrown.pro@gmail.com#all/${encodeURIComponent(m.gmail_id || "")}`;
+  let syncing = false;
+  async function syncInbox(manual) {
+    if (DEMO) { if (manual) toast("Preview: in the live admin this checks hello@milabrown.pro for new replies."); return; }
+    if (syncing) return; syncing = true; if (manual) render();
+    const before = inboxState; let changed = false;
+    try {
+      const { data, error } = await sb.functions.invoke("mail-inbox", { body: { action: "sync" } });
+      let msg = data && data.error;
+      if (error) { try { const j = await error.context.json(); msg = j.error || error.message; } catch { msg = error.message; } }
+      if (msg === "not_configured" || /not found|404|failed to send/i.test(msg || "")) inboxState = "setup";
+      else if (msg) { inboxState = "error:" + msg; }
+      else {
+        inboxState = "ok";
+        // new mail may also arrive from the Gmail script, so read the saved inbox each time
+        const prev = DB.email_inbox.length ? DB.email_inbox[0].id + ":" + DB.email_inbox.length : "";
+        const { data: rows } = await sb.from("email_inbox").select("*").eq("archived", false).order("received_at", { ascending: false }).limit(500);
+        if (rows) { const nowKey = rows.length ? rows[0].id + ":" + rows.length : ""; changed = nowKey !== prev; const fresh = rows.filter((r) => !DB.email_inbox.some((x) => x.id === r.id)).length; DB.email_inbox = rows; if (manual) toast(fresh ? `${fresh} new email${fresh === 1 ? "" : "s"}` : "No new emails"); }
+      }
+    } catch (e) { inboxState = "error:" + (e.message || "network"); }
+    syncing = false;
+    // Only redraw when something changed, so an open form or email isn't interrupted
+    if (manual || (tab === "emails" && (changed || inboxState !== before))) render();
+    else { const nb = document.querySelector('[data-tab="emails"]'); if (nb) { const c = nb.querySelector(".count"), n = unread(); if (n) { if (c) c.textContent = n; else nb.insertAdjacentHTML("beforeend", `<span class="count badge-new">${n}</span>`); } else if (c) c.remove(); } }
+  }
+  async function markRead(id, v) {
+    const m = DB.email_inbox.find((x) => x.id === id); if (!m || m.read === v) return;
+    m.read = v; if (!DEMO) { try { await sb.from("email_inbox").update({ read: v }).eq("id", id); } catch {} }
+    const nb = document.querySelector('[data-tab="emails"] .count'); const n = unread();
+    if (nb) { if (n) nb.textContent = n; else nb.remove(); }
+    const row = document.querySelector(`[data-inrow="${id}"]`); if (row) row.classList.toggle("unread", !v);
+  }
+  document.addEventListener("toggle", (e) => { const d = e.target; if (d && d.dataset && d.dataset.inrow && d.open) markRead(d.dataset.inrow, true); }, true);
   // ---------- formatted message editor (font, size, bold, colour, lists, links, emoji) ----------
   const COPY_TO = "milabrown.pro@gmail.com";
   const EMOJI = "🌿 🌸 🌺 🌷 🌼 🌞 🌙 🌕 ✨ ⭐ 💫 🔥 💧 🌊 🍃 🌱 🕉️ 🙏 🧘‍♀️ 💆‍♀️ 🛁 🍵 💜 💛 🤍 💚 ❤️ 😊 🥰 😌 🤗 👋 👉 ✅ 📅 ⏰ 📍 📞 ✉️ 🎁 🎶 🔔".split(" ");
@@ -553,10 +595,13 @@
     let html = fold("card", p.crm ? "Client card" : "Client card (new)", cardMeta, bare(formHtml("milabrownclients", "", p.crm ? p.crm : crmRow, btns)));
     const email = (p.crm && p.crm.email) || (p.prof && p.prof.email);
     if (email) {
-      const sent = mailsTo(email);
-      html = fold("email", "Email", sent.length ? `${sent.length} sent · last ${fmtWhen(sent[0].sent_at)}` : "No emails yet",
+      const sent = mailsTo(email), got = repliesFrom(email);
+      const conv = [...sent.map((m) => ({ m, out: true, at: m.sent_at })), ...got.map((m) => ({ m, out: false, at: m.received_at }))].sort((a, b) => String(b.at).localeCompare(String(a.at)));
+      const newN = got.filter((m) => !m.read).length;
+      const meta = conv.length ? [`${sent.length} sent`, `${got.length} received${newN ? ` (${newN} new)` : ""}`, `last ${fmtWhen(conv[0].at)}`].join(" · ") : "No emails yet";
+      html = fold("email", "Email", meta,
         `<div class="actions" style="margin:0 0 10px"><button class="btn sm" type="button" data-mail="${esc(email)}" data-name="${esc(nameOf(p))}">✉ Send email</button><span class="small muted">From hello@milabrown.pro to ${esc(email)}</span></div>
-        ${sent.length ? `<div class="list">${sent.map((m) => `<div class="item"><div><b>${esc(m.subject)}</b> <span class="muted small">· ${fmtWhen(m.sent_at)}</span><p class="small muted mail-body">${esc(m.body || "")}</p></div></div>`).join("")}</div>` : ""}`) + html;
+        ${conv.length ? `<div class="list conv">${conv.map(({ m, out }) => `<div class="item ${out ? "c-out" : "c-in"}"><div><span class="pill ${out ? "" : "booked"}">${out ? "You wrote" : "Reply"}</span> <b>${esc(m.subject || "(no subject)")}</b> <span class="muted small">· ${fmtWhen(out ? m.sent_at : m.received_at)}</span>${!out && !m.read ? ' <i class="dot-new" aria-label="New"></i>' : ""}<p class="small muted mail-body">${esc(m.body || m.snippet || "")}</p>${!out ? `<div class="actions" style="margin:6px 0 0"><button class="btn ghost sm" type="button" data-mail="${esc(email)}" data-name="${esc(nameOf(p))}" data-resubj="${esc(m.subject || "")}">↩ Reply</button><a class="btn ghost sm" href="${gmailLink(m)}" target="_blank" rel="noopener">Open in Gmail ↗</a></div>` : ""}</div></div>`).join("")}</div>` : ""}`) + html;
     }
     if (!p.prof) {
       html += `<div class="panel invite"><h3>Serene Portal access</h3><p class="muted">${esc(nameOf(p))} doesn't have a Serene Portal login yet. Invite them and their portal (services, protocols, retreats) appears here automatically.</p>
@@ -647,17 +692,30 @@
 
   function vEmails() {
     const s = qs.emails.toLowerCase();
-    // This week (from Monday) and this month, by the day the email was sent
+    // This week (from Monday) and this month
     const now = new Date(), dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const weekStart = new Date(dayStart.getTime() - ((dayStart.getDay() + 6) % 7) * 864e5), monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const inPeriod = (m, f) => f === "all" || new Date(m.sent_at) >= (f === "week" ? weekStart : monthStart);
-    const nOf = (f) => DB.email_log.filter((m) => inPeriod(m, f)).length;
-    const rows = DB.email_log.filter((m) => inPeriod(m, emFilter) && (!s || [m.to_name, m.to_email, m.subject, m.body].join(" ").toLowerCase().includes(s)));
+    const inbox = emBox === "inbox", list = inbox ? DB.email_inbox : DB.email_log, when = (m) => inbox ? m.received_at : m.sent_at;
+    const inPeriod = (m, f) => f === "all" || new Date(when(m)) >= (f === "week" ? weekStart : monthStart);
+    const nOf = (f) => list.filter((m) => inPeriod(m, f)).length;
+    const rows = list.filter((m) => inPeriod(m, emFilter) && (!s || (inbox ? [m.from_name, m.from_email, m.subject, m.body] : [m.to_name, m.to_email, m.subject, m.body]).join(" ").toLowerCase().includes(s)));
     const people_ = people();
-    const who = (m) => people_.find((p) => [p.crm && p.crm.email, p.prof && p.prof.email].some((e) => e && e.toLowerCase() === (m.to_email || "").toLowerCase()));
-    return head("Sent from hello@milabrown.pro", "Emails", `${DB.email_log.length} email${DB.email_log.length === 1 ? "" : "s"} sent from the admin. Newest first; click one to read it.`) +
-      `<div class="toolbar">${chips("em", emFilter, [["week", `This week · ${nOf("week")}`], ["month", `This month · ${nOf("month")}`], ["all", `All · ${DB.email_log.length}`]])}${search("emails", "Search name, email, subject…")}<button class="btn sm" type="button" data-newmail>✉ New email</button></div>
-      <div class="stack">${rows.map((m) => { const p = who(m); return `<details class="card mail-row"><summary><div class="req-top"><h3>${esc(m.subject || "(no subject)")}</h3><span class="small muted">${fmtWhen(m.sent_at)}</span></div>
+    const who = (em) => people_.find((p) => [p.crm && p.crm.email, p.prof && p.prof.email].some((e) => e && e.toLowerCase() === (em || "").toLowerCase()));
+    const n = unread();
+    const boxes = chips("box", emBox, [["inbox", `Inbox${n ? ` · ${n} new` : ` · ${DB.email_inbox.length}`}`], ["sent", `Sent · ${DB.email_log.length}`]]);
+    let note = "";
+    if (inbox && inboxState === "setup") note = `<div class="panel inbox-note"><h3>Connect your Gmail inbox</h3><p class="small muted">Replies to hello@milabrown.pro will appear here once Gmail is connected (Google Cloud project, read-only access, three secrets in Supabase). Until then, read them in Gmail.</p><div class="actions"><a class="btn sm" href="https://mail.google.com/mail/u/?authuser=milabrown.pro@gmail.com" target="_blank" rel="noopener">Open Gmail ↗</a></div></div>`;
+    else if (inbox && inboxState.startsWith("error:")) note = `<p class="note err">Couldn't check Gmail: ${esc(inboxState.slice(6))}</p>`;
+    const sub = inbox ? "Replies and new emails to hello@milabrown.pro, checked every few minutes. Click one to read it." : `${DB.email_log.length} email${DB.email_log.length === 1 ? "" : "s"} sent from the admin. Newest first; click one to read it.`;
+    return head("hello@milabrown.pro", "Emails", sub) +
+      `<div class="toolbar">${boxes}<span class="tb-sep"></span>${chips("em", emFilter, [["week", `This week · ${nOf("week")}`], ["month", `This month · ${nOf("month")}`], ["all", `All · ${list.length}`]])}${search("emails", inbox ? "Search sender, subject, text…" : "Search name, email, subject…")}
+        ${inbox ? `<button class="btn ghost sm" type="button" data-insync ${syncing ? "disabled" : ""}>${syncing ? "Checking…" : "↻ Check for new"}</button>` : ""}<button class="btn sm" type="button" data-newmail>✉ New email</button></div>${note}
+      <div class="stack">${inbox ? rows.map((m) => { const p = who(m.from_email); return `<details class="card mail-row in-row${m.read ? "" : " unread"}" data-inrow="${esc(m.id)}"><summary><div class="req-top"><h3>${m.read ? "" : '<i class="dot-new" aria-label="New"></i>'}${esc(m.subject || "(no subject)")}</h3><span class="small muted">${fmtWhen(m.received_at)}</span></div>
+        <p class="small">From <b>${esc(m.from_name || m.from_email)}</b>${m.from_name ? ` <span class="muted">&lt;${esc(m.from_email)}&gt;</span>` : ""}${p ? ' <span class="pill booked">client</span>' : ""}${m.has_attachments ? ' <span class="pill">📎 attachment</span>' : ""}</p></summary>
+        <p class="mail-full">${esc(m.body || m.snippet || "")}</p>
+        <div class="actions"><button class="btn sm" type="button" data-mail="${esc(m.from_email)}" data-name="${esc(m.from_name || (p ? nameOf(p) : ""))}" data-resubj="${esc(m.subject || "")}">↩ Reply</button>${p ? `<button class="btn ghost sm" type="button" data-openclient="${esc(p.key)}">Open client</button>` : ""}<a class="btn ghost sm" href="${gmailLink(m)}" target="_blank" rel="noopener">Open in Gmail ↗</a><button class="btn ghost sm" type="button" data-inunread="${esc(m.id)}">Mark unread</button><button class="btn ghost sm" type="button" data-inarch="${esc(m.id)}">Remove</button></div></details>`; }).join("") ||
+        `<div class="empty">${DB.email_inbox.length ? "No emails match." : inboxState === "setup" ? "Nothing here yet." : "No replies yet."}</div>`
+      : rows.map((m) => { const p = who(m.to_email); return `<details class="card mail-row"><summary><div class="req-top"><h3>${esc(m.subject || "(no subject)")}</h3><span class="small muted">${fmtWhen(m.sent_at)}</span></div>
         <p class="small">To <b>${esc(m.to_name || m.to_email)}</b>${m.to_name ? ` <span class="muted">&lt;${esc(m.to_email)}&gt;</span>` : ""}</p></summary>
         <p class="mail-full">${esc(m.body || "")}</p>
         <div class="actions">${p ? `<button class="btn ghost sm" type="button" data-openclient="${esc(p.key)}">Open client</button>` : ""}<button class="btn sm" type="button" data-mail="${esc(m.to_email)}" data-name="${esc(m.to_name || "")}">✉ Write again</button></div></details>`; }).join("") ||
@@ -698,12 +756,15 @@
       return;
     }
     if (T("[data-newmail]")) { openBulk(); return; }
-    if ((el = T("[data-mail]"))) { openMail(el.dataset.mail, el.dataset.name, el.dataset.inq); return; }
+    if ((el = T("[data-mail]"))) { openMail(el.dataset.mail, el.dataset.name, el.dataset.inq, el.dataset.resubj ? { subject: /^re:/i.test(el.dataset.resubj) ? el.dataset.resubj : "Re: " + el.dataset.resubj } : null); return; }
+    if (T("[data-insync]")) { syncInbox(true); return; }
+    if ((el = T("[data-inunread]"))) { e.preventDefault(); const d = el.closest("details"); markRead(el.dataset.inunread, false); if (d) d.open = false; return; }
+    if ((el = T("[data-inarch]"))) { const m = DB.email_inbox.find((x) => x.id === el.dataset.inarch); if (m) { if (!DEMO) { try { await sb.from("email_inbox").update({ archived: true }).eq("id", m.id); } catch { toast("Couldn't archive. Please try again."); return; } } DB.email_inbox = DB.email_inbox.filter((x) => x !== m); toast("Removed from the inbox (it stays in Gmail)"); render(); } return; }
     if (T("[data-mailclose]")) { $("mail-dlg").close(); return; }
     if ((el = T("[data-tab]"))) { tab = el.dataset.tab; editing = {}; draft = null; render(); return; }
     if ((el = T("[data-sel]"))) { selectPerson(el.dataset.sel); return; }
     if ((el = T("[data-openclient]"))) { tab = "clients"; selectPerson(el.dataset.openclient); return; }
-    if ((el = T("[data-chip]"))) { const v = el.dataset.v; if (el.dataset.chip === "req") reqFilter = v; else if (el.dataset.chip === "cli") cliFilter = v; else if (el.dataset.chip === "lib") { libAud = v; if (v !== "own") libWho = ""; } else if (el.dataset.chip === "em") emFilter = v; else arcFilter = v; render(); return; }
+    if ((el = T("[data-chip]"))) { const v = el.dataset.v; if (el.dataset.chip === "req") reqFilter = v; else if (el.dataset.chip === "cli") cliFilter = v; else if (el.dataset.chip === "lib") { libAud = v; if (v !== "own") libWho = ""; } else if (el.dataset.chip === "em") emFilter = v; else if (el.dataset.chip === "box") emBox = v; else arcFilter = v; render(); return; }
     if (T("[data-newclient]")) { draft = {}; sel = null; editing = {}; render(); return; }
     if (T("[data-canceldraft]")) { draft = null; render(); return; }
     if ((el = T("[data-confirm]"))) {
@@ -780,6 +841,7 @@
     }
     try { await loadAll(); } catch { toast("Couldn't load data. Please refresh."); }
     $("login").hidden = true; $("app").hidden = false; render();
+    syncInbox(false); setInterval(() => { if (!document.hidden) syncInbox(false); }, 5 * 60e3);
   }
   if (DEMO) {
     $("demo-flag").hidden = false; $("login").hidden = false; $("login-form").hidden = true; $("demo-enter").hidden = false;
