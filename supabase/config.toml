@@ -1,0 +1,15 @@
+# Supabase settings read by the GitHub integration (Deploy to production on branch main).
+# Only the Edge Functions below are deployed from here; the database is changed by hand in the SQL editor.
+project_id = "milabrown-portal"
+
+# Sends emails from hello@milabrown.pro (MB-PADM). Checks inside that the caller is the admin.
+[functions.smart-action]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/smart-action/index.ts"
+
+# Online booking through Mindbody (website, Serene Portal, admin). Open to everyone by design.
+[functions.mindbody]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/mindbody/index.ts"
