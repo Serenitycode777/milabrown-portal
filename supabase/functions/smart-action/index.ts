@@ -16,7 +16,7 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&
 
 // Turn web addresses into buttons/links (a booking link becomes a "Choose a time" button)
 function linkify(html: string) {
-  return html.replace(/https?:\/\/[^\s<]+/g, (u) => /mindbodyonline\.com\/book/.test(u)
+  return html.replace(/https?:\/\/[^\s<]+/g, (u) => /mindbodyonline\.com\/book|milabrown\.pro\/\?service=/.test(u)
     ? `<a href="${u}" target="_blank" style="display:inline-block;margin:4px 0;padding:13px 28px;border-radius:999px;background:#5b4b88;color:#faf2dd;font-size:13px;letter-spacing:2px;text-transform:uppercase;font-weight:600;text-decoration:none">Choose a time</a>`
     : `<a href="${u}" target="_blank" style="color:#5b4b88">${u}</a>`);
 }
@@ -69,7 +69,7 @@ function linkifyHtml(html: string) {
 }
 // Style links: a Mindbody booking link becomes a "Choose a time" button
 function styleLinks(html: string) {
-  return html.replace(/<a href="([^"]*)">([\s\S]*?)<\/a>/g, (_m, href: string, text: string) => /mindbodyonline\.com\/book/.test(href)
+  return html.replace(/<a href="([^"]*)">([\s\S]*?)<\/a>/g, (_m, href: string, text: string) => /mindbodyonline\.com\/book|milabrown\.pro\/\?service=/.test(href)
     ? `<a href="${href}" target="_blank" style="display:inline-block;margin:4px 0;padding:13px 28px;border-radius:999px;background:#5b4b88;color:#faf2dd;font-size:13px;letter-spacing:2px;text-transform:uppercase;font-weight:600;text-decoration:none">${/^https?:/.test(text.trim()) ? "Choose a time" : text}</a>`
     : `<a href="${href}" target="_blank" style="color:#5b4b88">${text}</a>`);
 }
