@@ -26,6 +26,9 @@ const LEAD_HOURS = 72;      // clients book at least 72 hours ahead
 const ADMIN_LEAD_HOURS = 1; // Mila can book almost anything
 const STEP_MIN = 30;        // start times every 30 minutes
 const MAX_DAYS = 31;
+const UA = "MilaBrownBooking/1.0"; // Mindbody asks apps to name themselves
+const MAX_PER_EMAIL = 3;  // online bookings per email per 24 hours (protects the calendar from spam)
+const MAX_PER_IP = 5;     // online bookings per internet address per 24 hours
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -57,7 +60,7 @@ async function staffToken(force = false) {
   if (!force && token && token.until > Date.now()) return token.v;
   const r = await fetch(`${API}/usertoken/issue`, {
     method: "POST",
-    headers: { "Api-Key": env("MB_API_KEY"), SiteId: SITE(), "Content-Type": "application/json" },
+    headers: { "Api-Key": env("MB_API_KEY"), SiteId: SITE(), "Content-Type": "application/json", "User-Agent": UA },
     body: JSON.stringify({ Username: env("MB_STAFF_USER"), Password: env("MB_STAFF_PASS") }),
   });
   const out = await r.json().catch(() => ({}));
@@ -71,7 +74,7 @@ async function mb(path: string, opts: { method?: string; query?: Record<string, 
   for (const [k, v] of Object.entries(opts.query || {})) for (const x of Array.isArray(v) ? v : [v]) u.searchParams.append(k, String(x));
   const r = await fetch(u, {
     method: opts.method || "GET",
-    headers: { "Api-Key": env("MB_API_KEY"), SiteId: SITE(), Authorization: await staffToken(), "Content-Type": "application/json" },
+    headers: { "Api-Key": env("MB_API_KEY"), SiteId: SITE(), Authorization: await staffToken(), "Content-Type": "application/json", "User-Agent": UA },
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
   const out = await r.json().catch(() => ({}));
@@ -155,6 +158,19 @@ Deno.serve(async (req) => {
       if (!first || !last) throw new Oops("Please add your first and last name.");
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Oops("The email address looks wrong.");
 
+      // spam guard: a few online bookings per person per day (uses the bookings table if it exists)
+      const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || null;
+      const db = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"));
+      if (!admin) {
+        const dayAgo = new Date(Date.now() - 864e5).toISOString();
+        const byEmail = await db.from("bookings").select("id", { count: "exact", head: true }).eq("email", email).eq("by_admin", false).gte("created_at", dayAgo);
+        if (!byEmail.error && (byEmail.count || 0) >= MAX_PER_EMAIL) throw new Oops("You've already booked several sessions today. Please write to me and I'll help you.", 429);
+        if (ip) {
+          const byIp = await db.from("bookings").select("id", { count: "exact", head: true }).eq("ip", ip).eq("by_admin", false).gte("created_at", dayAgo);
+          if (!byIp.error && (byIp.count || 0) >= MAX_PER_IP) throw new Oops("Too many bookings from this connection today. Please write to me and I'll help you.", 429);
+        }
+      }
+
       // the time must still be open (no cache)
       const day = start.slice(0, 10);
       const free = await openTimes(service, day, 1, admin);
@@ -180,11 +196,10 @@ Deno.serve(async (req) => {
 
       // keep a copy for the admin (if the bookings table exists)
       try {
-        const sb = createClient(env("SUPABASE_URL"), env("SUPABASE_SERVICE_ROLE_KEY"));
-        await sb.from("bookings").insert({
+        await db.from("bookings").insert({
           mb_appointment_id: a.Id ? String(a.Id) : null, mb_client_id: String(client.Id), service_id: service,
           service_name: (SERVICES[service] && SERVICES[service].name) || null, starts_at: start, ends_at: a.EndDateTime || null,
-          first_name: first, last_name: last, email, phone: phone || null, note: note || null, by_admin: admin, sandbox: SANDBOX(),
+          first_name: first, last_name: last, email, phone: phone || null, note: note || null, by_admin: admin, sandbox: SANDBOX(), ip,
         });
       } catch (_) { /* table not created yet: booking is still made */ }
 
