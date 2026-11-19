@@ -58,7 +58,7 @@
   let tab = "requests", sel = null, draft = null, editing = {}, reqFilter = "new", cliFilter = "all", arcFilter = "all", libAud = "all", libWho = "", emFilter = "all", emBox = "inbox", inboxState = DEMO ? "ok" : "";
   const qs = { requests: "", clients: "", archive: "", emails: "" };
   let bookSvc = "", bookWho = "", bookEmail = "";
-  const DB = { inquiries: [], milabrownclients: [], profiles: [], modalities: [], library_items: [], retreats: [], client_services: [], protocols: [], retreat_attendance: [], email_log: [], email_inbox: [] };
+  const DB = { inquiries: [], milabrownclients: [], profiles: [], modalities: [], library_items: [], retreats: [], client_services: [], protocols: [], retreat_attendance: [], email_log: [], email_inbox: [], bookings: [] };
   const PORTAL_TABLES = ["client_services", "protocols", "retreat_attendance"];
   const bucketOf = (table) => table === "protocols" ? "protocols" : "library";
   // A client's documents are library items shared only with them: same rows, shown on the client page
@@ -202,7 +202,7 @@
   async function loadAll() {
     if (DEMO) { if (!DB.profiles.length) demoData(); return; }
     const opt = (p) => p.then((r) => (r.error ? [] : r.data)); // old tables may be missing in a fresh project
-    const [inq, crm, p, m, l, r, em, inb] = await Promise.all([
+    const [inq, crm, p, m, l, r, em, inb, bk] = await Promise.all([
       opt(sb.from("inquiries").select("*").order("created_at", { ascending: false })),
       opt(sb.from("milabrownclients").select("*").order("created_at", { ascending: false })),
       q(sb.from("profiles").select("*").order("created_at", { ascending: false })),
@@ -211,8 +211,9 @@
       q(sb.from("retreats").select("*").order("starts_on", { ascending: false, nullsFirst: true })),
       opt(sb.from("email_log").select("*").order("sent_at", { ascending: false })),
       opt(sb.from("email_inbox").select("*").eq("archived", false).order("received_at", { ascending: false }).limit(500)),
+      opt(sb.from("bookings").select("*").order("created_at", { ascending: false }).limit(50)),
     ]);
-    Object.assign(DB, { inquiries: inq, milabrownclients: crm, profiles: p, modalities: m, library_items: l, retreats: r, email_log: em, email_inbox: inb });
+    Object.assign(DB, { inquiries: inq, milabrownclients: crm, profiles: p, modalities: m, library_items: l, retreats: r, email_log: em, email_inbox: inb, bookings: bk });
   }
   async function loadPortal(profileId) {
     if (DEMO || !profileId) return;
@@ -234,6 +235,10 @@
       { id: "c1", name: "Anna Example", email: "anna@example.com", phone: "(984) 555-0110", format: "Full-day Immersion", retreat_date: "2026-08-22", client_since: "2026-08-01", categories: "VIP, ENG", modalities: "Sound Healing Bath, Kundalini Yoga, Infrared Sauna", notes: "Prefers mornings. Loves sound baths.", archived: false },
       { id: "c2", name: "Irina K.", email: "irina@example.com", phone: null, format: "Half-day Reset", retreat_date: "2026-12-06", client_since: "2026-11-01", categories: "RUS", modalities: "Ayurveda, Meditation", notes: "", archived: false },
       { id: "c3", name: "Yulia G.", email: null, format: "Half-day Reset", retreat_date: "2026-05-10", categories: "RUS, Serenity Moon", archived: true },
+    ];
+    DB.bookings = [
+      { id: "b1", created_at: new Date().toISOString(), first_name: "Irina", last_name: "K.", email: "irina@example.com", service_name: "Ayurveda Consultation", starts_at: "2026-11-26T10:00:00", note: "First visit", by_admin: false, sandbox: false },
+      { id: "b2", created_at: new Date().toISOString(), first_name: "Anna", last_name: "Example", email: "anna@example.com", service_name: "Sound Healing Bath · Private Session", starts_at: "2026-11-24T19:00:00", by_admin: true, sandbox: false },
     ];
     DB.email_inbox = [
       { id: "r1", gmail_id: "demo1", from_email: "anna@example.com", from_name: "Anna Example", subject: "Re: Your protocol for December", body: "Thank you, Mila! I started the morning routine today and already feel calmer. Could we move our session on the 12th to the afternoon?", received_at: new Date(Date.now() - 3 * 3600e3).toISOString(), read: false, has_attachments: false },
@@ -661,7 +666,17 @@
     { id: 14, name: "Coaching & Mentorship", meta: "60 min · $150" },
     { id: 16, name: "Sound Healing Bath · Private Session", meta: "60 min · $99" },
   ];
-  const svcLink = (id) => `${MB_WIDGET}/schedule?locationId=1&serviceId=${id}&staffId=3`;
+  let mbLive = false; // true once the Mindbody API works (real Site ID): links then open the milabrown.pro booking form
+  const svcLink = (id) => mbLive ? `https://milabrown.pro/?service=${id}#book` : `${MB_WIDGET}/schedule?locationId=1&serviceId=${id}&staffId=3`;
+  async function checkMindbody() {
+    if (DEMO) return;
+    try {
+      const r = await fetch("https://sldavkemqnsruvgghnbm.supabase.co/functions/v1/mindbody", { method: "POST", headers: { "Content-Type": "application/json", apikey: "sb_publishable_CqLtNh6mFW-VVRP0P23_jA_D-UUrkVr", Authorization: "Bearer sb_publishable_CqLtNh6mFW-VVRP0P23_jA_D-UUrkVr" }, body: JSON.stringify({ action: "times", service: 8, days: 3 }) });
+      const out = await r.json().catch(() => ({}));
+      mbLive = r.ok && out.ok && !out.sandbox;
+      if (tab === "booking") render();
+    } catch {}
+  }
   // The booking form is made once and kept, so a half-filled booking survives other changes on the page
   let bookEl = null;
   function bookForm() {
@@ -687,6 +702,7 @@
         </div>
         ${s ? `<p class="small">Booking link for <b>${esc(s.name)}</b>: <a href="${svcLink(s.id)}" target="_blank" rel="noopener">open it ↗</a></p>` : `<p class="small muted">Choose a service to get its link.</p>`}
         <div class="actions"><button class="btn sm" type="button" data-bkmail ${s ? "" : "disabled"}>✉ Email link to client</button><button class="btn ghost sm" type="button" data-bkcopy ${s ? "" : "disabled"}>Copy link</button></div></div>
+      ${DB.bookings.length ? `<div class="panel"><h3>Online bookings</h3><p class="small muted">Sessions booked through the booking form (the appointment itself is in Mindbody).</p><div class="list">${DB.bookings.slice(0, 30).map((b) => `<div class="item"><div><b>${esc([b.first_name, b.last_name].filter(Boolean).join(" ") || b.email)}</b> <span class="muted small">· ${esc(b.email || "")}</span>${b.sandbox ? ' <span class="pill paused">test</span>' : ""}${b.by_admin ? ' <span class="pill">booked by you</span>' : ""}<p class="small">${esc(b.service_name || "Session")} · ${esc(String(b.starts_at || "").replace("T", " ").slice(0, 16))}</p>${b.note ? `<p class="small muted">${esc(b.note)}</p>` : ""}</div></div>`).join("")}</div></div>` : ""}
       <div class="panel"><h3>All links</h3><div class="list">${SERVICES.map((x) => `<div class="item"><div><b>${esc(x.name)}</b> <span class="muted small">· ${esc(x.meta)}</span></div><div class="actions" style="margin:0;flex:none"><a class="btn ghost sm" href="${svcLink(x.id)}" target="_blank" rel="noopener">Open</a><button class="btn ghost sm" type="button" data-copy="${svcLink(x.id)}">Copy</button></div></div>`).join("")}</div></div>`;
   }
 
@@ -841,6 +857,7 @@
     }
     try { await loadAll(); } catch { toast("Couldn't load data. Please refresh."); }
     $("login").hidden = true; $("app").hidden = false; render();
+    checkMindbody();
     syncInbox(false); setInterval(() => { if (!document.hidden) syncInbox(false); }, 5 * 60e3);
   }
   if (DEMO) {
