@@ -333,16 +333,16 @@
     if (tab === "booking" && $("mb-book-slot")) $("mb-book-slot").appendChild(bookForm());
   }
 
-  // ---------- email (sent from hello@milabrown.pro through the send-email function) ----------
+  // ---------- email (sent from mila@milabrown.pro through the send-email function) ----------
   const mailsTo = (em) => em ? DB.email_log.filter((m) => (m.to_email || "").toLowerCase() === em.toLowerCase()) : [];
   const lastMail = (em) => mailsTo(em)[0];
-  // ---------- inbox: replies to hello@milabrown.pro, copied from Gmail by the mail-inbox function ----------
+  // ---------- inbox: replies to mila@milabrown.pro, copied from Gmail by the mail-inbox function ----------
   const repliesFrom = (em) => em ? DB.email_inbox.filter((m) => (m.from_email || "").toLowerCase() === em.toLowerCase()) : [];
   const unread = () => DB.email_inbox.filter((m) => !m.read && !m.archived).length;
   const gmailLink = (m) => `https://mail.google.com/mail/u/?authuser=milabrown.pro@gmail.com#all/${encodeURIComponent(m.gmail_id || "")}`;
   let syncing = false;
   async function syncInbox(manual) {
-    if (DEMO) { if (manual) toast("Preview: in the live admin this checks hello@milabrown.pro for new replies."); return; }
+    if (DEMO) { if (manual) toast("Preview: in the live admin this checks mila@milabrown.pro for new replies."); return; }
     if (syncing) return; syncing = true; if (manual) render();
     const before = inboxState; let changed = false;
     try {
@@ -411,7 +411,7 @@
   document.body.insertAdjacentHTML("beforeend", `<dialog class="mail-dlg" id="mail-dlg" aria-labelledby="mail-h">
     <form method="dialog" id="mail-form" novalidate>
       <div class="req-top"><h3 id="mail-h">Send email</h3><button class="linkbtn" type="button" data-mailclose aria-label="Close">✕</button></div>
-      <p class="small muted">From <b>Mila Brown &lt;hello@milabrown.pro&gt;</b> to <b id="mail-to"></b></p>
+      <p class="small muted">From <b>Mila Brown &lt;mila@milabrown.pro&gt;</b> to <b id="mail-to"></b></p>
       <label for="mail-subj">Subject<input id="mail-subj" type="text" maxlength="200" required></label>
       <div class="rte-wrap"><span class="rte-label">Message</span>${rteHtml("mail-msg")}</div>
       <label class="check"><input type="checkbox" id="mail-cc" checked> <span>CC me at ${COPY_TO}</span></label>
@@ -451,7 +451,7 @@
   document.body.insertAdjacentHTML("beforeend", `<dialog class="mail-dlg bulk-dlg" id="bulk-dlg" aria-labelledby="bulk-h">
     <form method="dialog" id="bulk-form" novalidate>
       <div class="req-top"><h3 id="bulk-h">New email</h3><button class="linkbtn" type="button" data-bulkclose aria-label="Close">✕</button></div>
-      <p class="small muted">From <b>Mila Brown &lt;hello@milabrown.pro&gt;</b>. Each person gets their own copy, so no one sees the other addresses.</p>
+      <p class="small muted">From <b>Mila Brown &lt;mila@milabrown.pro&gt;</b>. Each person gets their own copy, so no one sees the other addresses.</p>
       <div class="bulk-to"><span class="small"><b>Send to</b></span><div class="filters" role="group" id="bulk-modes"></div></div>
       <div id="bulk-pick"></div>
       <p class="small bulk-sum" id="bulk-sum" aria-live="polite"></p>
@@ -600,7 +600,7 @@
       const newN = got.filter((m) => !m.read).length;
       const meta = conv.length ? [`${sent.length} sent`, `${got.length} received${newN ? ` (${newN} new)` : ""}`, `last ${fmtWhen(conv[0].at)}`].join(" · ") : "No emails yet";
       html = fold("email", "Email", meta,
-        `<div class="actions" style="margin:0 0 10px"><button class="btn sm" type="button" data-mail="${esc(email)}" data-name="${esc(nameOf(p))}">✉ Send email</button><span class="small muted">From hello@milabrown.pro to ${esc(email)}</span></div>
+        `<div class="actions" style="margin:0 0 10px"><button class="btn sm" type="button" data-mail="${esc(email)}" data-name="${esc(nameOf(p))}">✉ Send email</button><span class="small muted">From mila@milabrown.pro to ${esc(email)}</span></div>
         ${conv.length ? `<div class="list conv">${conv.map(({ m, out }) => `<div class="item ${out ? "c-out" : "c-in"}"><div><span class="pill ${out ? "" : "booked"}">${out ? "You wrote" : "Reply"}</span> <b>${esc(m.subject || "(no subject)")}</b> <span class="muted small">· ${fmtWhen(out ? m.sent_at : m.received_at)}</span>${!out && !m.read ? ' <i class="dot-new" aria-label="New"></i>' : ""}<p class="small muted mail-body">${esc(m.body || m.snippet || "")}</p>${!out ? `<div class="actions" style="margin:6px 0 0"><button class="btn ghost sm" type="button" data-mail="${esc(email)}" data-name="${esc(nameOf(p))}" data-resubj="${esc(m.subject || "")}">↩ Reply</button><a class="btn ghost sm" href="${gmailLink(m)}" target="_blank" rel="noopener">Open in Gmail ↗</a></div>` : ""}</div></div>`).join("")}</div>` : ""}`) + html;
     }
     if (!p.prof) {
@@ -704,10 +704,10 @@
     const n = unread();
     const boxes = chips("box", emBox, [["inbox", `Inbox${n ? ` · ${n} new` : ` · ${DB.email_inbox.length}`}`], ["sent", `Sent · ${DB.email_log.length}`]]);
     let note = "";
-    if (inbox && inboxState === "setup") note = `<div class="panel inbox-note"><h3>Connect your Gmail inbox</h3><p class="small muted">Replies to hello@milabrown.pro will appear here once Gmail is connected (Google Cloud project, read-only access, three secrets in Supabase). Until then, read them in Gmail.</p><div class="actions"><a class="btn sm" href="https://mail.google.com/mail/u/?authuser=milabrown.pro@gmail.com" target="_blank" rel="noopener">Open Gmail ↗</a></div></div>`;
+    if (inbox && inboxState === "setup") note = `<div class="panel inbox-note"><h3>Connect your Gmail inbox</h3><p class="small muted">Replies to mila@milabrown.pro will appear here once Gmail is connected (Google Cloud project, read-only access, three secrets in Supabase). Until then, read them in Gmail.</p><div class="actions"><a class="btn sm" href="https://mail.google.com/mail/u/?authuser=milabrown.pro@gmail.com" target="_blank" rel="noopener">Open Gmail ↗</a></div></div>`;
     else if (inbox && inboxState.startsWith("error:")) note = `<p class="note err">Couldn't check Gmail: ${esc(inboxState.slice(6))}</p>`;
-    const sub = inbox ? "Replies and new emails to hello@milabrown.pro, checked every few minutes. Click one to read it." : `${DB.email_log.length} email${DB.email_log.length === 1 ? "" : "s"} sent from the admin. Newest first; click one to read it.`;
-    return head("hello@milabrown.pro", "Emails", sub) +
+    const sub = inbox ? "Replies and new emails to mila@milabrown.pro, checked every few minutes. Click one to read it." : `${DB.email_log.length} email${DB.email_log.length === 1 ? "" : "s"} sent from the admin. Newest first; click one to read it.`;
+    return head("mila@milabrown.pro", "Emails", sub) +
       `<div class="toolbar">${boxes}<span class="tb-sep"></span>${chips("em", emFilter, [["week", `This week · ${nOf("week")}`], ["month", `This month · ${nOf("month")}`], ["all", `All · ${list.length}`]])}${search("emails", inbox ? "Search sender, subject, text…" : "Search name, email, subject…")}
         ${inbox ? `<button class="btn ghost sm" type="button" data-insync ${syncing ? "disabled" : ""}>${syncing ? "Checking…" : "↻ Check for new"}</button>` : ""}<button class="btn sm" type="button" data-newmail>✉ New email</button></div>${note}
       <div class="stack">${inbox ? rows.map((m) => { const p = who(m.from_email); return `<details class="card mail-row in-row${m.read ? "" : " unread"}" data-inrow="${esc(m.id)}"><summary><div class="req-top"><h3>${m.read ? "" : '<i class="dot-new" aria-label="New"></i>'}${esc(m.subject || "(no subject)")}</h3><span class="small muted">${fmtWhen(m.received_at)}</span></div>
