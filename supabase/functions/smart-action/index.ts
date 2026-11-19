@@ -1,9 +1,9 @@
-// send-email: lets Mila (admin only) send an email from hello@milabrown.pro through Resend.
+// send-email: lets Mila (admin only) send an email from mila@milabrown.pro through Resend.
 // Needs the secret RESEND_API_KEY (Edge Functions -> Secrets).
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const FROM = "Mila Brown <hello@milabrown.pro>";
-const REPLY_TO = "hello@milabrown.pro";
+const FROM = "Mila Brown <mila@milabrown.pro>";
+const REPLY_TO = "mila@milabrown.pro";
 const COPY_TO = "milabrown.pro@gmail.com"; // Mila gets a copy (CC) when "CC me" is ticked
 const cors = {
   "Access-Control-Allow-Origin": "*",
