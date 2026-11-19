@@ -336,3 +336,23 @@ input[type=radio]{width:18px;height:18px;padding:0;accent-color:var(--indigo);fl
 .bulk-dlg textarea{min-height:170px}
 .bulk-dlg #bulk-pick:empty{display:none}
 .view .toolbar [data-newmail]{flex:none}
+/* formatted message editor in the email windows */
+.rte-wrap{display:grid;gap:6px}
+.rte-label{font:500 .72rem var(--body);letter-spacing:.14em;text-transform:uppercase;color:var(--ink-soft)}
+.rte{border:1px solid var(--stone);border-radius:14px;background:#fff;overflow:hidden}
+.rte-bar{display:flex;flex-wrap:wrap;align-items:center;gap:4px;padding:6px 8px;border-bottom:1px solid var(--stone);background:#faf8fc}
+.rte-bar button{all:unset;box-sizing:border-box;cursor:pointer;min-width:30px;height:30px;padding:0 7px;border-radius:8px;display:inline-grid;place-items:center;font-size:.92rem;color:var(--ink)}
+.rte-bar button:hover,.rte-bar button[aria-expanded="true"]{background:rgba(91,75,136,.1)}
+.rte-bar button:focus-visible{outline:2px solid var(--aqua);outline-offset:1px}
+.rte-bar select{font:400 .82rem var(--body);padding:5px 8px;border:1px solid var(--stone);border-radius:8px;background:#fff;color:var(--ink);width:auto}
+.rte-bar .rte-sw{min-width:22px;width:22px;height:22px;padding:0;border-radius:50%;background:var(--c);box-shadow:inset 0 0 0 2px #fff,0 0 0 1px var(--stone)}
+.rte-sep{width:1px;height:20px;background:var(--stone);margin:0 3px}
+.rte-emoji{display:flex;flex-wrap:wrap;gap:2px;padding:6px 8px;border-bottom:1px solid var(--stone);background:#fff}
+.rte-emoji[hidden]{display:none}
+.rte-emoji button{all:unset;cursor:pointer;font-size:1.25rem;width:34px;height:34px;display:grid;place-items:center;border-radius:8px}
+.rte-emoji button:hover{background:rgba(91,75,136,.1)}
+.rte-area{min-height:200px;max-height:42vh;overflow:auto;padding:12px 14px;font:400 1rem/1.6 var(--body);color:var(--ink);outline:none}
+.rte-area:focus{box-shadow:inset 0 0 0 2px rgba(87,167,172,.4)}
+.rte-area a{color:var(--indigo)}
+.rte-area ul,.rte-area ol{margin:.3em 0;padding-left:1.4em}
+.bulk-dlg .rte-area{min-height:150px}
