@@ -18,7 +18,7 @@
     en: {
       s1: "Choose a session", s2: "Choose a day and time", s3: "Your details", s3a: "Client details", min: "min", change: "Change",
       loading: "Finding open times…", none: "No open times in the next four weeks. Please write to me and we'll find a time.",
-      tz: "Times are North Raleigh (Eastern) time.", rule: "Book at least 72 hours ahead. Free cancellation up to 24 hours before.",
+      tz: "Times are North Raleigh (Eastern) time.", yours: "your time:", rule: "Book at least 72 hours ahead. Free cancellation up to 24 hours before.",
       ruleAdmin: "Admin: you can book from 1 hour ahead. The client gets Mindbody's confirmation email.",
       first: "First name", last: "Last name", email: "Email", phone: "Phone (optional)", note: "Anything I should know? (optional)",
       book: "Book this session", booking: "Booking…", who: "Client", whoPick: "Choose a client…", whoNew: "New person (type below)",
@@ -30,7 +30,7 @@
     ru: {
       s1: "Выберите сессию", s2: "Выберите день и время", s3: "Ваши данные", s3a: "Данные клиента", min: "мин", change: "Изменить",
       loading: "Ищем свободное время…", none: "В ближайшие четыре недели нет свободного времени. Напишите мне, и мы подберём время.",
-      tz: "Время указано по North Raleigh (восточное время США).", rule: "Запись не позже чем за 72 часа. Бесплатная отмена до 24 часов до сессии.",
+      tz: "Время указано по North Raleigh (восточное время США).", yours: "по вашему времени:", rule: "Запись не позже чем за 72 часа. Бесплатная отмена до 24 часов до сессии.",
       ruleAdmin: "Админ: можно записать за 1 час. Клиент получит подтверждение от Mindbody.",
       first: "Имя", last: "Фамилия", email: "Email", phone: "Телефон (необязательно)", note: "Что мне важно знать? (необязательно)",
       book: "Записаться", booking: "Записываем…", who: "Клиент", whoPick: "Выберите клиента…", whoNew: "Новый человек (введите ниже)",
@@ -48,6 +48,15 @@
   const timeLabel = (s, lang) => fmt(s, lang, { hour: "numeric", minute: "2-digit" });
   const whenLabel = (s, lang) => `${fmt(s, lang, { weekday: "long", month: "long", day: "numeric" })}, ${timeLabel(s, lang)}`;
   const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  // For visitors in another time zone (e.g. Europe): the same moment in their own time
+  function nyToDate(s) {
+    const guess = Date.parse(s.slice(0, 19) + "Z");
+    const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).formatToParts(new Date(guess)).map((x) => [x.type, x.value]));
+    const asNY = Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute);
+    return new Date(guess + (guess - asNY));
+  }
+  const otherZone = (s) => { const d = nyToDate(s), nyOffset = Math.round((Date.parse(s.slice(0, 19) + "Z") - d.getTime()) / 60000); return -d.getTimezoneOffset() !== nyOffset ? d : null; };
+  const yourTime = (s, lang) => { const d = otherZone(s); return d ? d.toLocaleString(lang === "ru" ? "ru-RU" : "en-US", { weekday: "short", hour: "numeric", minute: "2-digit" }) : ""; };
 
   function css() {
     if (document.getElementById("mbk-css")) return;
@@ -121,6 +130,7 @@
 
   function mount(el, o) {
     o = Object.assign({ lang: "en", admin: false, demo: false, prefill: {}, people: null, service: null }, o || {});
+    if (!o.service && !o.admin) { const q = Number(new URLSearchParams(location.search).get("service")); if (SERVICES.some((x) => x.id === q)) o.service = q; }
     css();
     const t = T[o.lang === "ru" ? "ru" : "en"], L = o.lang === "ru" ? "ru" : "en";
     const st = { svc: o.service || null, slots: null, day: null, slot: null, loading: false, error: "", sandbox: false, busy: false, done: null, who: "", notice: "", f: Object.assign({ first: "", last: "", email: "", phone: "", note: "" }, o.prefill) };
@@ -183,7 +193,7 @@
       // 3 · details
       h += `<div class="step${st.slot ? "" : " off"}"><h4><span class="n">3</span>${esc(o.admin ? t.s3a : t.s3)}</h4>`;
       if (st.slot) {
-        h += `<div class="picked"><span><b>${esc(whenLabel(st.slot.start, L))}</b> <span class="muted" style="display:inline">· ${esc(name(svc))}</span></span></div><form class="grid2" novalidate>`;
+        h += `<div class="picked"><span><b>${esc(whenLabel(st.slot.start, L))}</b>${yourTime(st.slot.start, L) ? ` <span class="muted" style="display:inline">(${esc(t.yours)} ${esc(yourTime(st.slot.start, L))})</span>` : ""} <span class="muted" style="display:inline">· ${esc(name(svc))}</span></span></div><form class="grid2" novalidate>`;
         if (o.admin && o.people) h += `<label class="wide">${esc(t.who)}<select data-who><option value="">${esc(t.whoPick)}</option>${o.people.map((p, i) => `<option value="${i}" ${String(i) === st.who ? "selected" : ""}>${esc(p.name)} · ${esc(p.email)}</option>`).join("")}<option value="new" ${st.who === "new" ? "selected" : ""}>${esc(t.whoNew)}</option></select></label>`;
         const inp = (k, type, req, ac) => `<label>${esc(t[k])}<input name="${k}" type="${type}" value="${esc(st.f[k])}" ${req ? "required" : ""} autocomplete="${ac}"></label>`;
         h += inp("first", "text", 1, "given-name") + inp("last", "text", 1, "family-name") + inp("email", "email", 1, "email") + inp("phone", "tel", 0, "tel");
