@@ -2,7 +2,7 @@
 # Only the Edge Functions below are deployed from here; the database is changed by hand in the SQL editor.
 project_id = "milabrown-portal"
 
-# Sends emails from hello@milabrown.pro (MB-PADM). Checks inside that the caller is the admin.
+# Sends emails from mila@milabrown.pro (MB-PADM). Checks inside that the caller is the admin.
 [functions.smart-action]
 enabled = true
 verify_jwt = false
@@ -14,7 +14,7 @@ enabled = true
 verify_jwt = false
 entrypoint = "./functions/mindbody/index.ts"
 
-# Inbox: copies replies to hello@milabrown.pro from Gmail into the admin (read-only, admin only).
+# Inbox: copies replies to mila@milabrown.pro from Gmail into the admin (read-only, admin only).
 [functions.mail-inbox]
 enabled = true
 verify_jwt = false
