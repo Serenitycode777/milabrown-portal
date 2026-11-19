@@ -139,6 +139,7 @@
         }
       } catch (e) {
         if (!o.admin || e.code === "not_configured" || e.code === 404) return fallback(); // clients always get a way to book
+        if (o.admin && /staff login|not_configured|api key|mindbody: error 5/i.test(e.message || "")) return adminOffline();
         st.error = e.message || t.err;
       }
       st.loading = false;
@@ -231,7 +232,17 @@
       st.busy = false; draw();
     });
 
-    if (!o.demo && !o.admin) {
+    // Admin: until Mindbody approves the connection, say so plainly and point to the Mindbody appointment book
+    function adminOffline() {
+      el.classList.add("mbk");
+      el.innerHTML = `<div class="ok" style="background:rgba(184,145,63,.1);border-color:rgba(184,145,63,.4)"><h4 style="color:#7a5f1f">Online booking isn't connected yet</h4>
+        <p class="muted" style="font-size:.95rem">This form starts working when Mindbody approves the website connection (your API request is still in review). Until then, book clients in your Mindbody appointment book.</p>
+        <a class="go" style="justify-self:start;text-decoration:none" href="https://clients.mindbodyonline.com/app/business/mainappointments/index" target="_blank" rel="noopener">Open Mindbody appointment book ↗</a></div>`;
+    }
+    if (!o.demo && o.admin) {
+      el.innerHTML = `<p class="muted"><span class="spin"></span>${esc(t.loading)}</p>`;
+      call({ action: "ping" }, o.getToken).then((r) => { if (r.sandbox) adminOffline(); else if (st.svc) load(); else draw(); }, () => adminOffline());
+    } else if (!o.demo && !o.admin) {
       // Clients only see the new form once Mindbody is live; until then, the Mindbody widget straight away
       el.innerHTML = `<p class="muted"><span class="spin"></span>${esc(t.loading)}</p>`;
       call({ action: "ping" }).then((r) => { if (r.sandbox) fallback(); else if (st.svc) load(); else draw(); }, () => fallback());
