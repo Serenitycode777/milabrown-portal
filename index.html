@@ -282,7 +282,13 @@
     $("demo-setpw").addEventListener("click", () => { pwMode = "create"; showSetPw(); });
   } else {
     let routed = false;
-    const route = (session) => { routed = true; if (session && pwMode) showSetPw(); else if (session) load(session.user); else showLogin(); };
+    const route = (session) => {
+      routed = true;
+      // signed out: forget the previous person, so the next sign-in loads fresh
+      if (!session) { if (D.profile && D.profile.id) Object.assign(D, { profile: null, modalities: [], services: [], protocols: [], attendance: [], retreats: [], library: [], favs: [] }); showLogin(); return; }
+      if (D.profile && D.profile.id && D.profile.id !== session.user.id) D.profile = null;
+      if (pwMode) showSetPw(); else load(session.user);
+    };
     $("boot").hidden = false;
     sb.auth.onAuthStateChange((event, session) => { if (event === "PASSWORD_RECOVERY") pwMode = "reset"; setTimeout(() => route(session), 0); });
     if (window.__AUTH_ERR) { history.replaceState(null, "", location.pathname); setTimeout(() => say("login-err", T().linkExpired), 0); }
@@ -367,7 +373,7 @@
       toast(t.pwSaved); load(data.user);
     } else { btn.disabled = false; pwMode = ""; toast(t.pwSaved); start(DEMO_DATA); }
   });
-  $("logout").addEventListener("click", async () => { if (DEMO) location.reload(); else { await sb.auth.signOut(); location.hash = ""; } });
+  $("logout").addEventListener("click", async () => { if (DEMO) location.reload(); else { try { await sb.auth.signOut(); } catch (e) {} history.replaceState(null, "", location.pathname); location.reload(); } });
 
   let loading = false;
   async function load(user) {
