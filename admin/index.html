@@ -858,14 +858,16 @@
     try { await loadAll(); } catch { toast("Couldn't load data. Please refresh."); }
     $("login").hidden = true; $("app").hidden = false; render();
     checkMindbody();
-    syncInbox(false); setInterval(() => { if (!document.hidden) syncInbox(false); }, 5 * 60e3);
+    syncInbox(false);
+    if (!boot.timer) boot.timer = setInterval(() => { if (!document.hidden) syncInbox(false); }, 5 * 60e3);
   }
   if (DEMO) {
     $("demo-flag").hidden = false; $("login").hidden = false; $("login-form").hidden = true; $("demo-enter").hidden = false;
     $("demo-enter").addEventListener("click", () => boot());
   } else {
     let booted = false;
-    const go = (s) => { if (s && !booted) { booted = true; boot(s.user); } else if (!s) { $("login").hidden = false; $("app").hidden = true; } };
+    // signing in again after a sign-out (or an expired session) loads everything afresh
+    const go = (s) => { if (s && booted !== s.user.id) { booted = s.user.id; setTimeout(() => boot(s.user), 0); } else if (!s) { booted = false; $("login").hidden = false; $("app").hidden = true; } };
     sb.auth.getSession().then(({ data }) => go(data.session));
     sb.auth.onAuthStateChange((_e, s) => go(s));
   }
