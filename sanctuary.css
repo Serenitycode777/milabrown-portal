@@ -440,3 +440,8 @@ input[type=radio]{width:18px;height:18px;padding:0;accent-color:var(--indigo);fl
   .post-body h2,.post-body h3{break-after:avoid}
   .post-body img,.post-body blockquote{break-inside:avoid}
 }
+/* Admin: language sections in the article editor */
+.fsec{margin-top:10px;padding-top:14px;border-top:1px solid var(--mist)}
+.fsec:first-of-type{margin-top:0}
+.fsec h4{margin:0 0 4px;font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--indigo);font-weight:600}
+.fsec p{margin:0}
