@@ -149,6 +149,7 @@
       emailDemo: "In the live portal a confirmation link is sent.", nameTooLong: "Please keep the name under 120 characters.",
       blogEyebrow: "From Mila", blogText: "Articles on Ayurveda, yoga, sound, Jyotish and living in balance.", blogEmpty: "Mila's articles will appear here soon.",
       readArticle: "Read article", allArticles: "All articles", explore: "Explore further", by: "by", latestArticle: "Latest article", minRead: (n) => `${n} min read`, notFound: "This article isn't available any more.",
+      print: "Print", share: "Share", copyLink: "Copy link", linkCopied: "Link copied", emailShare: "Email", shareNote: "The link opens in the Serene Portal: the person you share it with needs a portal login to read it.", shareHello: "An article from Mila Brown",
     },
     ru: {
       demo: "Предпросмотр с примерами · данные не настоящие",
@@ -196,6 +197,7 @@
       emailDemo: "В рабочем портале будет отправлена ссылка для подтверждения.", nameTooLong: "Имя должно быть короче 120 символов.",
       blogEyebrow: "От Милы", blogText: "Статьи об аюрведе, йоге, звуке, Джйотише и жизни в балансе.", blogEmpty: "Скоро здесь появятся статьи Милы.",
       readArticle: "Читать статью", allArticles: "Все статьи", explore: "Узнать больше", by: "автор", latestArticle: "Новая статья", minRead: (n) => `${n} мин чтения`, notFound: "Эта статья больше недоступна.",
+      print: "Распечатать", share: "Поделиться", copyLink: "Скопировать ссылку", linkCopied: "Ссылка скопирована", emailShare: "Email", shareNote: "Ссылка открывается в Serene Portal: чтобы прочитать статью, у человека должен быть вход в портал.", shareHello: "Статья Милы Браун",
     },
   };
   const T = () => TXT[getLang()];
@@ -539,6 +541,47 @@
   // ---------- blog: Mila's articles ----------
   const readMins = (html) => { const w = String(html || "").replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length; return Math.max(1, Math.round(w / 200)); };
   const byline = (a) => `<time datetime="${esc(a.published_on || "")}">${fmtDate(a.published_on || String(a.created_at || "").slice(0, 10))}</time>${a.author ? ` · ${T().by} ${esc(a.author)}` : ""} · ${T().minRead(readMins(a.body))}`;
+  // Print and share for an article
+  const ICO = {
+    print: '<path d="M7 9V3h10v6M7 17H4v-7h16v7h-3M7 14h10v7H7z"/>',
+    share: '<circle cx="18" cy="5" r="2.5"/><circle cx="6" cy="12" r="2.5"/><circle cx="18" cy="19" r="2.5"/><path d="M8.2 10.8l7.6-4.4M8.2 13.2l7.6 4.4"/>',
+    link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+    wa: '<path d="M4 20l1.3-3.9A8 8 0 1 1 8 19z"/><path d="M9 9.5c.3 2 1.8 3.8 4.1 4.6l1.2-1.1 1.7.8c-.2 1-1 1.7-2 1.7-3.3-.3-6-3-6.3-6.3 0-1 .7-1.8 1.7-2l.8 1.7z"/>',
+    tg: '<path d="M21 4L3 11l6 2 2 6 3-4 5 4z"/><path d="M9 13l9-6"/>',
+    mail: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 6.5l8.5 6.5 8.5-6.5"/>',
+  };
+  const svgI = (k) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICO[k]}</svg>`;
+  const postUrl = (a) => location.origin + location.pathname + "#blog/" + encodeURIComponent(a.id);
+  function postTools(a) {
+    const t = T(), u = encodeURIComponent(postUrl(a)), txt = encodeURIComponent(a.title + " · " + t.shareHello);
+    return `<div class="post-tools" role="group" aria-label="${t.share}">
+      <button class="tool" type="button" data-print>${svgI("print")}<span>${t.print}</span></button>
+      <button class="tool" type="button" data-share="${esc(a.id)}" aria-expanded="false">${svgI("share")}<span>${t.share}</span></button>
+      <div class="share-pop" hidden>
+        <button class="tool" type="button" data-copylink="${esc(a.id)}">${svgI("link")}<span>${t.copyLink}</span></button>
+        <a class="tool" href="https://wa.me/?text=${txt}%20${u}" target="_blank" rel="noopener">${svgI("wa")}<span>WhatsApp</span></a>
+        <a class="tool" href="https://t.me/share/url?url=${u}&text=${txt}" target="_blank" rel="noopener">${svgI("tg")}<span>Telegram</span></a>
+        <a class="tool" href="mailto:?subject=${encodeURIComponent(a.title)}&body=${encodeURIComponent(t.shareHello + ": " + a.title + "\n\n" + (a.excerpt ? a.excerpt + "\n\n" : "") + postUrl(a))}">${svgI("mail")}<span>${t.emailShare}</span></a>
+        <p class="share-note">${t.shareNote}</p>
+      </div></div>`;
+  }
+  document.addEventListener("click", async (e) => {
+    if (e.target.closest("[data-print]")) { window.print(); return; }
+    const sh = e.target.closest("[data-share]");
+    if (sh) {
+      const a = (D.articles || []).find((x) => String(x.id) === sh.dataset.share), pop = sh.parentElement.querySelector(".share-pop");
+      // phones: the built-in share sheet; computers: the list of options
+      if (a && navigator.share && matchMedia("(pointer:coarse)").matches) { try { await navigator.share({ title: a.title, text: a.excerpt || a.title, url: postUrl(a) }); } catch {} return; }
+      pop.hidden = !pop.hidden; sh.setAttribute("aria-expanded", String(!pop.hidden)); return;
+    }
+    const cp = e.target.closest("[data-copylink]");
+    if (cp) {
+      const a = (D.articles || []).find((x) => String(x.id) === cp.dataset.copylink); if (!a) return;
+      try { await navigator.clipboard.writeText(postUrl(a)); toast(T().linkCopied); } catch { prompt(T().copyLink, postUrl(a)); }
+      return;
+    }
+    if (!e.target.closest(".post-tools")) document.querySelectorAll(".share-pop").forEach((p) => { if (!p.hidden) { p.hidden = true; const b = p.parentElement.querySelector("[data-share]"); if (b) b.setAttribute("aria-expanded", "false"); } });
+  });
   function blog() {
     const t = T(), list = D.articles || [];
     if (postId) {
@@ -548,7 +591,7 @@
       return `<article class="post">
         <p class="post-back"><button class="btn ghost sm" type="button" data-go="blog">← ${t.allArticles}</button></p>
         ${a.cover_path ? `<img class="post-cover" src="${esc(blogImg(a.cover_path))}" alt="">` : ""}
-        <header class="post-head"><p class="eyebrow">${t.blogEyebrow}</p><h2>${esc(a.title)}</h2><p class="post-meta">${byline(a)}</p></header>
+        <header class="post-head"><p class="eyebrow">${t.blogEyebrow}</p><h2>${esc(a.title)}</h2><p class="post-meta">${byline(a)}</p>${postTools(a)}</header>
         <div class="post-body">${cleanHtml(a.body)}</div>
         ${links.length ? `<aside class="post-links" aria-label="${t.explore}"><h3>${t.explore}</h3><ul>${links.map((l) => `<li><a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label || l.url)}</a></li>`).join("")}</ul></aside>` : ""}
       </article>`;
