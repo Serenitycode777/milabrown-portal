@@ -122,7 +122,40 @@ window.S = (function () {
       { id: "r1", title: "“I AM” Individual Retreat", location: "North Raleigh, NC", format: "Private 1:1 or 1:2 · half-day or full-day", price: "Half-day from $222 · Full-day from $444",
         description: "A personalized journey of reset, alignment and inner expansion.", signup_url: "https://retreat.milabrown.pro", published: true },
     ],
+    articles: [
+      { id: "b1", title: "Five small rituals for a calm nervous system", author: "Mila Brown", published_on: "2026-11-20", published: true, cover_path: null,
+        excerpt: "Simple daily habits from Ayurveda and yoga that help the body feel safe again.",
+        body: "<p>When the nervous system is tired, big changes feel impossible. Small rituals, repeated every day, are what bring it back to balance.</p><h2>1. Warm water on waking</h2><p>Start the day with a cup of warm water with a slice of ginger. It wakes up digestion gently.</p><h2>2. Oil self-massage</h2><p><b>Abhyanga</b> three times a week grounds Vata and calms the mind.</p><blockquote>The body learns safety through rhythm.</blockquote><ul><li>Eat at the same times</li><li>Go to bed before 10:30 pm</li><li>Five minutes of Nadi Shodhana before sleep</li></ul>",
+        links: [{ label: "Nadi Shodhana: step by step (video)", url: "https://example.com" }, { label: "Book an Ayurveda consultation", url: "https://milabrown.pro/?service=11#book" }] },
+      { id: "b2", title: "Why your Vedic sign may differ from your Western one", author: "Mila Brown", published_on: "2026-11-05", published: true, cover_path: null,
+        excerpt: "The sidereal and tropical zodiacs explained in plain words.",
+        body: "<p>Western astrology follows the seasons, Jyotish follows the stars. Today they are about 24° apart.</p>", links: [{ label: "Vedic astrology page", url: "https://milabrown.pro/vedicastrology/" }] },
+    ],
   };
 
-  return { DEMO, sb, withTimeout, esc, fmtDate, today, toast, fileUrl, flower, sendLink, DEMO_DATA, setLang, getLang };
+  // Blog pictures live in the public "blog" storage bucket
+  const blogImg = (path) => !path ? "" : /^(https?:|data:|blob:)/.test(path) ? path : SB_URL + "/storage/v1/object/public/blog/" + String(path).split("/").map(encodeURIComponent).join("/");
+
+  // Article text is formatted HTML from the admin editor; keep only safe tags and attributes before showing it
+  const ALLOWED = { P: [], DIV: [], BR: [], B: [], STRONG: [], I: [], EM: [], U: [], H2: [], H3: [], BLOCKQUOTE: [], UL: [], OL: [], LI: [], SPAN: [], A: ["href"], IMG: ["src", "alt"], FONT: ["color", "size", "face"], FIGURE: [], FIGCAPTION: [], HR: [] };
+  function cleanHtml(html) {
+    const tpl = document.createElement("template"); tpl.innerHTML = String(html || "");
+    const walk = (node) => {
+      [...node.childNodes].forEach((n) => {
+        if (n.nodeType === 3) return;
+        if (n.nodeType !== 1) { n.remove(); return; }
+        const tag = n.tagName, ok = ALLOWED[tag];
+        if (!ok) { if (/^(SCRIPT|STYLE|IFRAME|OBJECT|EMBED|svg|SVG|MATH|FORM|INPUT|TEXTAREA|BUTTON)$/.test(tag)) { n.remove(); return; } walk(n); n.replaceWith(...n.childNodes); return; }
+        [...n.attributes].forEach((a) => { if (!ok.includes(a.name)) n.removeAttribute(a.name); });
+        if (tag === "A") { const h = n.getAttribute("href") || ""; if (!/^(https?:\/\/|mailto:)/i.test(h)) n.removeAttribute("href"); else { n.setAttribute("target", "_blank"); n.setAttribute("rel", "noopener"); } }
+        if (tag === "IMG") { const src = n.getAttribute("src") || ""; if (!/^(https:\/\/|blob:|data:image\/)/i.test(src)) { n.remove(); return; } n.setAttribute("loading", "lazy"); }
+        if (tag === "FONT") { const c = n.getAttribute("color"); if (c && !/^#[0-9a-f]{3,8}$/i.test(c)) n.removeAttribute("color"); const sz = n.getAttribute("size"); if (sz && !/^[1-7]$/.test(sz)) n.removeAttribute("size"); const f = n.getAttribute("face"); if (f && !/^(Jost|Cormorant Garamond)$/.test(f)) n.removeAttribute("face"); }
+        walk(n);
+      });
+    };
+    walk(tpl.content);
+    return tpl.innerHTML;
+  }
+
+  return { DEMO, sb, withTimeout, esc, fmtDate, today, toast, fileUrl, flower, sendLink, DEMO_DATA, setLang, getLang, blogImg, cleanHtml };
 })();
