@@ -364,3 +364,51 @@ input[type=radio]{width:18px;height:18px;padding:0;accent-color:var(--indigo);fl
 .inbox-note{background:rgba(184,145,63,.08);border-color:rgba(184,145,63,.35)}
 .conv .c-in{border-left:3px solid var(--aqua)}
 .conv .c-out{border-left:3px solid rgba(91,75,136,.35)}
+
+/* ===== Blog (portal) ===== */
+.posts{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:18px}
+.post-card{background:linear-gradient(180deg,#fff,#fbf9fc);border:1px solid rgba(216,215,217,.8);border-radius:20px;box-shadow:var(--sh);overflow:hidden;min-width:0;transition:transform .2s,box-shadow .2s}
+.post-card:hover{transform:translateY(-3px)}
+.post-link{display:grid;color:inherit;text-decoration:none;height:100%}
+.post-link:focus-visible{outline:2px solid var(--aqua);outline-offset:-2px;border-radius:20px}
+.post-card-img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:#efe9f3}
+.post-card-img.ph{display:grid;place-items:center;background:radial-gradient(ellipse at 50% 40%,#5b4b88,#2e2840)}
+.post-card-img.ph svg{width:46%;height:auto;opacity:.8}
+.post-card-text{display:grid;gap:8px;padding:18px 20px 20px;align-content:start}
+.post-card h3{font-size:1.45rem;line-height:1.15}
+.post-meta{font-size:.78rem;letter-spacing:.04em;color:var(--ink-soft)}
+.post-more{font-size:.82rem;letter-spacing:.12em;text-transform:uppercase;color:var(--indigo);font-weight:500;margin-top:4px}
+@media (min-width:900px){.posts .post-card.first{grid-column:1/-1}.posts .post-card.first .post-link{grid-template-columns:1.25fr 1fr}.posts .post-card.first .post-card-img{aspect-ratio:auto;height:100%;min-height:260px}.posts .post-card.first .post-card-text{align-content:center;padding:28px 32px}.posts .post-card.first h3{font-size:2rem}}
+.post{max-width:760px;margin:0 auto;display:grid;gap:18px}
+.post-back{margin:0}
+.post-cover{width:100%;max-height:440px;object-fit:cover;border-radius:22px;box-shadow:var(--sh)}
+.post-head{display:grid;gap:8px}
+.post-head h2{font-size:clamp(2rem,5vw,3rem);line-height:1.08}
+.post-body{font-size:1.06rem;line-height:1.75;color:var(--ink);overflow-wrap:anywhere}
+.post-body p,.post-body div{margin:0 0 1em}
+.post-body h2{font-size:1.75rem;margin:1.4em 0 .5em}
+.post-body h3{font-size:1.35rem;margin:1.2em 0 .4em}
+.post-body ul,.post-body ol{margin:0 0 1em;padding-left:1.4em}
+.post-body li{margin:.25em 0}
+.post-body blockquote{margin:1.2em 0;padding:14px 20px;border-left:3px solid var(--aqua);background:rgba(87,167,172,.08);border-radius:0 14px 14px 0;font-family:var(--display);font-size:1.35rem;line-height:1.4;color:var(--indigo)}
+.post-body img{display:block;max-width:100%;height:auto;border-radius:16px;margin:1.2em auto}
+.post-body a{color:var(--indigo);text-underline-offset:3px}
+.post-body font[size="2"]{font-size:.88em}.post-body font[size="5"]{font-size:1.3em}.post-body font[size="6"]{font-size:1.7em}
+.post-links{border-top:1px solid var(--stone);padding-top:18px;margin-top:8px}
+.post-links h3{font-size:1.4rem;margin-bottom:10px}
+.post-links ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.post-links a{display:flex;align-items:center;gap:10px;padding:12px 16px;border:1px solid var(--stone);border-radius:14px;background:#fff;color:var(--indigo);text-decoration:none;font-weight:500}
+.post-links a::after{content:"↗";margin-left:auto;color:var(--aqua)}
+.post-links a:hover{border-color:var(--aqua)}
+
+/* ===== Blog editor (admin) ===== */
+.rte.article .rte-area{min-height:340px;max-height:70vh;font-size:1.02rem;line-height:1.7}
+.rte-area h2{font-size:1.55rem;margin:.8em 0 .3em}.rte-area h3{font-size:1.25rem;margin:.7em 0 .3em}
+.rte-area blockquote{margin:.8em 0;padding:8px 14px;border-left:3px solid var(--aqua);background:rgba(87,167,172,.08)}
+.rte-area img{max-width:100%;height:auto;border-radius:12px;display:block;margin:.6em 0}
+.links-ed{display:grid;gap:8px}
+.links-ed .lrow{display:grid;grid-template-columns:1fr 1.4fr auto;gap:8px;align-items:center}
+.links-ed .lrow input{min-width:0}
+@media (max-width:640px){.links-ed .lrow{grid-template-columns:1fr auto}.links-ed .lrow input[data-lurl]{grid-column:1/2}}
+.blog-thumb{width:84px;height:56px;object-fit:cover;border-radius:10px;flex:none;background:#efe9f3}
+.blog-item{display:flex;gap:14px;align-items:center}
