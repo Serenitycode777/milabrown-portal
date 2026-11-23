@@ -534,11 +534,24 @@
           : `<article class="card"><span class="tag">${t.nav.protocols}</span><h3>${t.noActive}</h3><p class="muted">${t.noActiveText}</p></article>`}
         ${last ? `<article class="card"><span class="tag">${t.lastSession} · ${fmtDate(last.service_date)}</span><h3>${esc(last.modality)}</h3>${last.notes ? `<p class="muted">${esc(last.notes)}</p>` : ""}<div class="actions"><button class="btn ghost sm" type="button" data-go="services">${t.allSessions}</button></div></article>` : ""}
         <article class="card"><span class="tag">${t.practice}</span><h3>${t.yourLibrary}</h3><p class="muted">${t.libraryText}</p><div class="actions"><button class="btn ghost sm" type="button" data-go="library">${t.openLibrary}</button></div></article>
-        ${(D.articles || []).length ? (() => { const a = D.articles[0]; return `<article class="card"><span class="tag">${t.latestArticle} · ${fmtDate(a.published_on)}</span><h3>${esc(a.title)}</h3>${a.excerpt ? `<p class="muted">${esc(a.excerpt)}</p>` : ""}<div class="actions"><button class="btn ghost sm" type="button" data-go="blog/${esc(a.id)}">${t.readArticle}</button></div></article>`; })() : ""}
+        ${myArticles().length ? (() => { const a = myArticles()[0]; return `<article class="card"><span class="tag">${t.latestArticle} · ${fmtDate(a.published_on)}</span><h3>${esc(a.title)}</h3>${a.excerpt ? `<p class="muted">${esc(a.excerpt)}</p>` : ""}<div class="actions"><button class="btn ghost sm" type="button" data-go="blog/${esc(a.id)}">${t.readArticle}</button></div></article>`; })() : ""}
       </div>`;
   }
 
   // ---------- blog: Mila's articles ----------
+  // Each article can have an English and a Russian version: clients read the one in their portal language
+  // (if that version isn't written yet, they see the other one)
+  const has = (v) => !!(v && String(v).replace(/<[^>]+>/g, "").trim()) || /<img/i.test(String(v || ""));
+  function L(a) {
+    if (!a) return a;
+    const ruOk = has(a.body_ru) || has(a.title_ru), enOk = has(a.body) || has(a.title);
+    const ru = getLang() === "ru" ? ruOk || !enOk : !enOk && ruOk;
+    if (!ru) return Object.assign({}, a, { lang: "en", title: a.title || a.title_ru, links: Array.isArray(a.links) && a.links.length ? a.links : a.links_ru });
+    return Object.assign({}, a, { lang: "ru", title: a.title_ru || a.title, excerpt: has(a.excerpt_ru) ? a.excerpt_ru : has(a.body_ru) ? "" : a.excerpt,
+      body: has(a.body_ru) ? a.body_ru : a.body, links: Array.isArray(a.links_ru) && a.links_ru.length ? a.links_ru : a.links });
+  }
+  // An article shows in a language only when Mila has written that version
+  const myArticles = () => (D.articles || []).filter((a) => getLang() === "ru" ? has(a.body_ru) : has(a.body)).map(L);
   const readMins = (html) => { const w = String(html || "").replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length; return Math.max(1, Math.round(w / 200)); };
   const byline = (a) => `<time datetime="${esc(a.published_on || "")}">${fmtDate(a.published_on || String(a.created_at || "").slice(0, 10))}</time>${a.author ? ` · ${T().by} ${esc(a.author)}` : ""} · ${T().minRead(readMins(a.body))}`;
   // Print and share for an article
@@ -569,7 +582,7 @@
     if (e.target.closest("[data-print]")) { window.print(); return; }
     const sh = e.target.closest("[data-share]");
     if (sh) {
-      const a = (D.articles || []).find((x) => String(x.id) === sh.dataset.share), pop = sh.parentElement.querySelector(".share-pop");
+      const a = myArticles().find((x) => String(x.id) === sh.dataset.share), pop = sh.parentElement.querySelector(".share-pop");
       // phones: the built-in share sheet; computers: the list of options
       if (a && navigator.share && matchMedia("(pointer:coarse)").matches) { try { await navigator.share({ title: a.title, text: a.excerpt || a.title, url: postUrl(a) }); } catch {} return; }
       pop.hidden = !pop.hidden; sh.setAttribute("aria-expanded", String(!pop.hidden)); return;
@@ -583,12 +596,12 @@
     if (!e.target.closest(".post-tools")) document.querySelectorAll(".share-pop").forEach((p) => { if (!p.hidden) { p.hidden = true; const b = p.parentElement.querySelector("[data-share]"); if (b) b.setAttribute("aria-expanded", "false"); } });
   });
   function blog() {
-    const t = T(), list = D.articles || [];
+    const t = T(), list = myArticles();
     if (postId) {
       const a = list.find((x) => String(x.id) === postId);
       if (!a) return `<p><button class="btn ghost sm" type="button" data-go="blog">← ${t.allArticles}</button></p>` + empty(t.notFound);
       const links = (Array.isArray(a.links) ? a.links : []).filter((l) => l && /^https?:\/\//i.test(l.url || ""));
-      return `<article class="post">
+      return `<article class="post" lang="${a.lang}">
         <p class="post-back"><button class="btn ghost sm" type="button" data-go="blog">← ${t.allArticles}</button></p>
         ${a.cover_path ? `<img class="post-cover" src="${esc(blogImg(a.cover_path))}" alt="">` : ""}
         <header class="post-head"><p class="eyebrow">${t.blogEyebrow}</p><h2>${esc(a.title)}</h2><p class="post-meta">${byline(a)}</p>${postTools(a)}</header>
@@ -598,7 +611,7 @@
     }
     const h = head(t.blogEyebrow, t.nav.blog, t.blogText);
     if (!list.length) return h + empty(t.blogEmpty);
-    return h + `<div class="posts">${list.map((a, i) => `<article class="post-card${i === 0 ? " first" : ""}"><a class="post-link" href="#blog/${encodeURIComponent(a.id)}" data-go="blog/${esc(a.id)}">
+    return h + `<div class="posts">${list.map((a, i) => `<article class="post-card${i === 0 ? " first" : ""}" lang="${a.lang}"><a class="post-link" href="#blog/${encodeURIComponent(a.id)}" data-go="blog/${esc(a.id)}">
       ${a.cover_path ? `<img class="post-card-img" src="${esc(blogImg(a.cover_path))}" alt="" loading="lazy">` : `<span class="post-card-img ph" aria-hidden="true">${flower("pf")}</span>`}
       <span class="post-card-text"><span class="post-meta">${byline(a)}</span><h3>${esc(a.title)}</h3>${a.excerpt ? `<span class="muted">${esc(a.excerpt)}</span>` : ""}<span class="post-more">${t.readArticle} →</span></span></a></article>`).join("")}</div>`;
   }
