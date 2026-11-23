@@ -48,7 +48,7 @@
 
 <script>
 (function () {
-  const { DEMO, sb, esc, fmtDate, toast, fileUrl, flower, sendLink, DEMO_DATA } = S;
+  const { DEMO, sb, esc, fmtDate, toast, fileUrl, flower, sendLink, DEMO_DATA, blogImg, cleanHtml } = S;
   const $ = (id) => document.getElementById(id);
   const INVITE_URL = "https://supabase.com/dashboard/project/sldavkemqnsruvgghnbm/auth/users";
   const MODS = ["VedaPulse diagnostics", "Vedic Astrology (Jyotish)", "Coaching & mastermind", "Ayurveda", "Kundalini Yoga", "Sadhu Board", "Amethyst Mat + Photon Therapy", "Infrared Sauna", "Breathwork & pranayama", "Meditation", "Sound Healing Bath", "Aromatherapy", "Nature Bathing", "Sacred Geometry art"];
@@ -58,7 +58,7 @@
   let tab = "requests", sel = null, draft = null, editing = {}, reqFilter = "new", cliFilter = "all", arcFilter = "all", libAud = "all", libWho = "", emFilter = "all", emBox = "inbox", inboxState = DEMO ? "ok" : "";
   const qs = { requests: "", clients: "", archive: "", emails: "" };
   let bookSvc = "", bookWho = "", bookEmail = "";
-  const DB = { inquiries: [], milabrownclients: [], profiles: [], modalities: [], library_items: [], retreats: [], client_services: [], protocols: [], retreat_attendance: [], email_log: [], email_inbox: [], bookings: [] };
+  const DB = { inquiries: [], milabrownclients: [], profiles: [], modalities: [], library_items: [], retreats: [], client_services: [], protocols: [], retreat_attendance: [], email_log: [], email_inbox: [], bookings: [], articles: [] };
   const PORTAL_TABLES = ["client_services", "protocols", "retreat_attendance"];
   const bucketOf = (table) => table === "protocols" ? "protocols" : "library";
   // A client's documents are library items shared only with them: same rows, shown on the client page
@@ -97,6 +97,16 @@
       { k: "body", t: "textarea", l: "Mantra text (for mantras)", wide: true },
       { k: "url", t: "url", l: "Link (webinar, video or page)", wide: true },
       { k: "file_path", t: "file", l: "File (PDF, audio)", bucket: "library", wide: true },
+    ],
+    articles: [
+      { k: "title", t: "text", l: "Title", req: true, wide: true },
+      { k: "author", t: "text", l: "Author", d: "Mila Brown" },
+      { k: "published_on", t: "date", l: "Date shown on the article", d: todayStr },
+      { k: "published", t: "check", l: "Visible to clients", d: true },
+      { k: "cover_path", t: "file", l: "Cover picture (JPG or PNG, wide)", bucket: "blog", accept: "image/*", img: true, wide: true },
+      { k: "excerpt", t: "textarea", l: "Short summary (shown in the list of articles)", wide: true },
+      { k: "body", t: "rte", l: "Article", wide: true },
+      { k: "links", t: "links", l: "Explore further: links at the end of the article", wide: true },
     ],
     client_docs: [
       { k: "title", t: "text", l: "Title", req: true, wide: true },
@@ -157,7 +167,9 @@
     if (f.t === "textarea") return `<label${w} for="${id}">${f.l}<textarea id="${id}">${esc(val)}</textarea></label>`;
     if (f.t === "select") { const o = typeof f.o === "function" ? f.o() : f.o; return `<label${w} for="${id}">${f.l}<select id="${id}">${o.map(([a, b]) => `<option value="${esc(a)}" ${String(val) === String(a) ? "selected" : ""}>${esc(b)}</option>`).join("")}</select></label>`; }
     if (f.t === "list") return `<label${w} for="${id}">${f.l}<input id="${id}" list="${id}-dl" value="${esc(val)}"><datalist id="${id}-dl">${f.src().map((x) => `<option value="${esc(x)}">`).join("")}</datalist></label>`;
-    if (f.t === "file") return `<label${w} for="${id}">${f.l}${val ? ` <span class="small muted" style="text-transform:none;letter-spacing:0">current: ${esc(String(val).split("/").pop())}</span>` : ""}<input id="${id}" type="file"></label>`;
+    if (f.t === "file") return `<label${w} for="${id}">${f.l}${val ? ` <span class="small muted" style="text-transform:none;letter-spacing:0">current: ${esc(String(val).split("/").pop())}</span>` : ""}${val && f.img ? `<img class="blog-thumb" src="${esc(blogImg(val))}" alt="">` : ""}<input id="${id}" type="file"${f.accept ? ` accept="${f.accept}"` : ""}></label>`;
+    if (f.t === "rte") return `<div class="rte-wrap wide"><span class="rte-label">${f.l}</span>${rteHtml(id, { article: true, html: val ? cleanHtml(val) : "" })}</div>`;
+    if (f.t === "links") { const rows = Array.isArray(v) && v.length ? v : [{ label: "", url: "" }]; return `<fieldset class="multi wide links-ed" id="${id}"><legend>${f.l}</legend><div class="lrows">${rows.map(linkRow).join("")}</div><div><button class="btn ghost sm" type="button" data-addlink="${id}">+ Add a link</button></div></fieldset>`; }
     if (f.t === "audience") {
       const ids = Array.isArray(v) ? v : [], some = ids.length > 0;
       const ppl = DB.profiles.map((p) => ({ id: p.id, name: p.full_name || p.email || "(no name)", email: p.email || "" })).sort((a, b) => a.name.localeCompare(b.name));
@@ -173,6 +185,7 @@
     }
     return `<label${w} for="${id}">${f.l}<input id="${id}" type="${f.t}" value="${esc(val)}"></label>`;
   }
+  const linkRow = (l) => `<div class="lrow"><input type="text" data-llabel placeholder="Link title, e.g. Video: morning practice" value="${esc(l.label || "")}" aria-label="Link title"><input type="url" data-lurl placeholder="https://…" value="${esc(l.url || "")}" aria-label="Link address"><button class="btn ghost sm" type="button" data-dellink aria-label="Remove link">✕</button></div>`;
   function formHtml(table, title, row, extraBtns) {
     const e = row && row.id;
     return `<form class="panel" data-form="${table}" novalidate><h3>${title}</h3><div class="fgrid">${F[table].map((f) => fieldHtml(table, f, row ? row[f.k] : undefined)).join("")}</div>
@@ -191,6 +204,12 @@
         if (mode === "some" && !out[f.k].length) throw new Error("Choose at least one client, or pick “All clients”.");
       }
       else if (f.t === "number") out[f.k] = el.value === "" ? null : Number(el.value);
+      else if (f.t === "rte") out[f.k] = el.innerText.trim() || el.querySelector("img") ? cleanHtml(el.innerHTML) : null;
+      else if (f.t === "links") {
+        out[f.k] = [...el.querySelectorAll(".lrow")].map((r) => ({ label: r.querySelector("[data-llabel]").value.trim(), url: r.querySelector("[data-lurl]").value.trim() })).filter((l) => l.url || l.label);
+        const bad = out[f.k].find((l) => !/^https?:\/\/\S+$/i.test(l.url));
+        if (bad) throw new Error(`Please check the link address${bad.label ? ` for “${bad.label}”` : ""}: it should start with https://`);
+      }
       else out[f.k] = el.value.trim() === "" ? null : el.value.trim();
       if (f.req && !out[f.k]) { el.focus(); throw new Error(`Please fill in “${f.l}”.`); }
     }
@@ -202,7 +221,7 @@
   async function loadAll() {
     if (DEMO) { if (!DB.profiles.length) demoData(); return; }
     const opt = (p) => p.then((r) => (r.error ? [] : r.data)); // old tables may be missing in a fresh project
-    const [inq, crm, p, m, l, r, em, inb, bk] = await Promise.all([
+    const [inq, crm, p, m, l, r, em, inb, bk, ar] = await Promise.all([
       opt(sb.from("inquiries").select("*").order("created_at", { ascending: false })),
       opt(sb.from("milabrownclients").select("*").order("created_at", { ascending: false })),
       q(sb.from("profiles").select("*").order("created_at", { ascending: false })),
@@ -212,8 +231,9 @@
       opt(sb.from("email_log").select("*").order("sent_at", { ascending: false })),
       opt(sb.from("email_inbox").select("*").eq("archived", false).order("received_at", { ascending: false }).limit(500)),
       opt(sb.from("bookings").select("*").order("created_at", { ascending: false }).limit(50)),
+      opt(sb.from("articles").select("*").order("published_on", { ascending: false }).order("created_at", { ascending: false })),
     ]);
-    Object.assign(DB, { inquiries: inq, milabrownclients: crm, profiles: p, modalities: m, library_items: l, retreats: r, email_log: em, email_inbox: inb, bookings: bk });
+    Object.assign(DB, { inquiries: inq, milabrownclients: crm, profiles: p, modalities: m, library_items: l, retreats: r, email_log: em, email_inbox: inb, bookings: bk, articles: ar });
   }
   async function loadPortal(profileId) {
     if (DEMO || !profileId) return;
@@ -250,6 +270,7 @@
       { id: "e2", to_email: "olga@example.com", to_name: "Olga S.", subject: "Your retreat request", body: "Hi Olga,\n\nThank you for your request. Shall we find a date in December?", sent_at: "2026-11-14T17:05:00" },
     ];
     DB.profiles = [{ id: "demo", email: "anna@example.com", full_name: "Anna Example", phone: "", language: "en", contact_pref: "whatsapp" }];
+    DB.articles = d.articles || [];
     DB.modalities = d.modalities; DB.library_items = d.library.map((x) => ({ published: true, ...x })); DB.retreats = d.retreats;
     DB.client_services = d.services.map((x) => ({ ...x, client_id: "demo" }));
     DB.protocols = d.protocols.map((x) => ({ ...x, client_id: "demo" }));
@@ -296,6 +317,7 @@
       if (!out.file_path && !files.file_path && !out.url && !out.body && !(row && (row.file_path || row.url))) throw new Error("Add a file, a link or the mantra text.");
       if (!row || !row.id) { out.client_ids = [profileId]; out.published = true; }
     }
+    if (table === "articles" && !out.body) throw new Error("Please write the article text.");
     if (table === "retreat_attendance") { if (!out.retreat_id) out.retreat_id = null; if (!out.retreat_id && !out.title) throw new Error("Choose a retreat or type a title."); }
     for (const [k, v] of Object.entries(files)) out[k] = await upload(v.bucket, v.file, v.bucket === "protocols" ? profileId : "");
     const saved = await write(table, row && row.id, out);
@@ -316,6 +338,7 @@
     else {
       await q(sb.from(realTable(table)).delete().eq("id", id));
       if (row && row.file_path) await sb.storage.from(bucketOf(table)).remove([row.file_path]);
+      if (row && row.cover_path) await sb.storage.from("blog").remove([row.cover_path]);
       if (PORTAL_TABLES.includes(table)) await loadPortal(profileId); else await loadAll();
     }
     toast("Deleted"); render();
@@ -323,7 +346,7 @@
 
   // ---------- views ----------
   const NAV = [["requests", "Requests", '<path d="M4 6h16v12H4z"/><path d="m4 7 8 6 8-6"/>'], ["clients", "Clients", '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.5a6.5 6.5 0 0 1 3.5 5.5"/>'],
-    ["library", "Library", '<path d="M5 4h4v16H5zM10 4h4v16h-4zM15.5 4.5l3.8 1-3.8 14.6-3.6-1"/>'], ["modalities", "Modalities", '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="8" r="4"/><circle cx="12" cy="16" r="4"/>'],
+    ["library", "Library", '<path d="M5 4h4v16H5zM10 4h4v16h-4zM15.5 4.5l3.8 1-3.8 14.6-3.6-1"/>'], ["blog", "Blog", '<path d="M5 4h10l4 4v12H5z"/><path d="M15 4v4h4M8 12h8M8 15.5h8M8 9h4"/>'], ["modalities", "Modalities", '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="8" r="4"/><circle cx="12" cy="16" r="4"/>'],
     ["retreats", "Retreats", '<path d="M3 20h18M6 20l6-14 6 14M9.5 13h5"/>'], ["booking", "Booking", '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18M8 14h3v3H8z"/>'], ["emails", "Emails", '<path d="M3 11.5 21 4l-7.5 18-2.5-7.5z"/><path d="m11 14.5 10-10.5"/>'], ["archive", "Archive", '<rect x="3" y="4" width="18" height="5" rx="1"/><path d="M5 9v11h14V9M10 13h4"/>']];
   const head = (e, t, p) => `<div class="view-head"><p class="eyebrow">${e}</p><h2>${t}</h2>${p ? `<p class="muted">${p}</p>` : ""}</div>`;
   const chips = (name, cur, opts) => `<div class="filters" role="group">${opts.map(([v, t]) => `<button class="chip" type="button" data-chip="${name}" data-v="${v}" aria-pressed="${v === cur}">${t}</button>`).join("")}</div>`;
@@ -334,7 +357,7 @@
   function render() {
     const fresh = DB.inquiries.filter((r) => !r.archived && !r.contacted).length;
     $("nav").innerHTML = NAV.map(([k, t, ic]) => `<button type="button" data-tab="${k}" aria-current="${k === tab ? "page" : "false"}"><svg viewBox="0 0 24 24">${ic}</svg>${t}${k === "requests" && fresh ? `<span class="count badge-new">${fresh}</span>` : ""}${k === "emails" && unread() ? `<span class="count badge-new">${unread()}</span>` : ""}</button>`).join("");
-    $("view").innerHTML = ({ requests: vRequests, clients: vClients, library: vLibrary, modalities: vModalities, retreats: vRetreats, booking: vBooking, emails: vEmails, archive: vArchive })[tab]();
+    $("view").innerHTML = ({ requests: vRequests, clients: vClients, library: vLibrary, blog: vBlog, modalities: vModalities, retreats: vRetreats, booking: vBooking, emails: vEmails, archive: vArchive })[tab]();
     if (tab === "booking" && $("mb-book-slot")) $("mb-book-slot").appendChild(bookForm());
   }
 
@@ -380,15 +403,16 @@
   // ---------- formatted message editor (font, size, bold, colour, lists, links, emoji) ----------
   const COPY_TO = "milabrown.pro@gmail.com";
   const EMOJI = "🌿 🌸 🌺 🌷 🌼 🌞 🌙 🌕 ✨ ⭐ 💫 🔥 💧 🌊 🍃 🌱 🕉️ 🙏 🧘‍♀️ 💆‍♀️ 🛁 🍵 💜 💛 🤍 💚 ❤️ 😊 🥰 😌 🤗 👋 👉 ✅ 📅 ⏰ 📍 📞 ✉️ 🎁 🎶 🔔".split(" ");
-  const rteHtml = (id) => `<div class="rte"><div class="rte-bar" role="toolbar" aria-label="Text formatting">
+  const rteHtml = (id, o = {}) => `<div class="rte${o.article ? " article" : ""}"><div class="rte-bar" role="toolbar" aria-label="Text formatting">
+      ${o.article ? `<select data-rcmd="formatBlock" aria-label="Paragraph style"><option value="">Style</option><option value="<p>">Paragraph</option><option value="<h2>">Heading</option><option value="<h3>">Subheading</option><option value="<blockquote>">Quote</option></select>` : ""}
       <select data-rcmd="fontName" aria-label="Font"><option value="">Font</option><option value="Jost">Clean</option><option value="Cormorant Garamond">Elegant</option></select>
       <select data-rcmd="fontSize" aria-label="Size"><option value="">Size</option><option value="2">Small</option><option value="3">Normal</option><option value="5">Large</option><option value="6">Title</option></select>
       <button type="button" data-rcmd="bold" title="Bold" aria-label="Bold"><b>B</b></button><button type="button" data-rcmd="italic" title="Italic" aria-label="Italic"><i>I</i></button><button type="button" data-rcmd="underline" title="Underline" aria-label="Underline"><u>U</u></button>
       <span class="rte-sep"></span>${[["#2e2840", "Ink"], ["#5b4b88", "Indigo"], ["#336575", "Teal"], ["#b8913f", "Gold"], ["#a33a3a", "Red"]].map(([c, n]) => `<button type="button" class="rte-sw" data-rcmd="foreColor" data-v="${c}" title="${n}" aria-label="${n} text" style="--c:${c}"></button>`).join("")}
-      <span class="rte-sep"></span><button type="button" data-rcmd="insertUnorderedList" title="Bullet list" aria-label="Bullet list">••</button><button type="button" data-rcmd="insertOrderedList" title="Numbered list" aria-label="Numbered list">1.</button><button type="button" data-rcmd="link" title="Add link" aria-label="Add link">🔗</button>
+      <span class="rte-sep"></span><button type="button" data-rcmd="insertUnorderedList" title="Bullet list" aria-label="Bullet list">••</button><button type="button" data-rcmd="insertOrderedList" title="Numbered list" aria-label="Numbered list">1.</button><button type="button" data-rcmd="link" title="Add link" aria-label="Add link">🔗</button>${o.article ? `<button type="button" data-rcmd="image" title="Insert picture" aria-label="Insert picture">🖼️</button>` : ""}
       <button type="button" data-rcmd="emoji" title="Emoji" aria-label="Emoji" aria-expanded="false">😊</button><button type="button" data-rcmd="removeFormat" title="Clear formatting" aria-label="Clear formatting">⨯</button></div>
     <div class="rte-emoji" hidden>${EMOJI.map((x) => `<button type="button" data-remoji="${x}">${x}</button>`).join("")}</div>
-    <div class="rte-area" id="${id}" contenteditable="true" role="textbox" aria-multiline="true" aria-label="Message"></div></div>`;
+    <div class="rte-area" id="${id}" contenteditable="true" role="textbox" aria-multiline="true" aria-label="${o.article ? "Article text" : "Message"}">${o.html || ""}</div></div>`;
   const rteSet = (el, text) => { el.innerHTML = text.split("\n").map((l) => l ? esc(l) : "<br>").map((l) => `<div>${l}</div>`).join(""); };
   const rteText = (el) => el.innerText.replace(/\n{3,}/g, "\n\n").trim();
   const rteVal = (el) => ({ text: rteText(el), html: el.innerHTML });
@@ -401,12 +425,27 @@
     document.execCommand(cmd, false, v);
   }
   document.addEventListener("mousedown", (e) => { if (e.target.closest(".rte-bar button, .rte-emoji button")) e.preventDefault(); });
+  // Insert a picture into an article: it uploads to the blog folder and appears where the cursor is
+  function rteImage(box) {
+    const saved = rteRange, inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/*";
+    inp.addEventListener("change", async () => {
+      const file = inp.files[0]; if (!file) return;
+      if (file.size > 8 * 1024 * 1024) { toast("Please use a picture under 8 MB."); return; }
+      toast("Uploading the picture…");
+      try {
+        const path = await upload("blog", file, "inline"), src = DEMO ? URL.createObjectURL(file) : blogImg(path);
+        rteRange = saved; rteDo(box, "insertHTML", `<img src="${esc(src)}" alt=""><p><br></p>`); toast("Picture added");
+      } catch (err) { toast(err.message || "The picture didn't upload. Please try again."); }
+    });
+    inp.click();
+  }
   document.addEventListener("click", (e) => {
     const b = e.target.closest(".rte-bar button, .rte-emoji button"); if (!b) return;
     const box = b.closest(".rte"), pop = box.querySelector(".rte-emoji");
     if (b.dataset.remoji) { rteDo(box, "insertText", b.dataset.remoji); return; }
     const c = b.dataset.rcmd;
     if (c === "emoji") { pop.hidden = !pop.hidden; b.setAttribute("aria-expanded", String(!pop.hidden)); return; }
+    if (c === "image") { rteImage(box); return; }
     if (c === "link") { const u = prompt("Link address (https://…)", "https://"); if (u && /^(https?:\/\/|mailto:)\S+$/i.test(u.trim())) { const sel = getSelection(); if (rteRange && rteRange.collapsed) rteDo(box, "insertHTML", `<a href="${esc(u.trim())}">${esc(u.trim())}</a>`); else rteDo(box, "createLink", u.trim()); } return; }
     rteDo(box, c, b.dataset.v);
   });
@@ -646,6 +685,13 @@
     return head("For clients", "Library", "Mantras, PDFs, audio and webinar links. Share with all clients, or only with the clients you choose (they find it in Library → My Docs).") + formHtml("library_items", editing.library_items ? "Edit library item" : "Add a library item", editing.library_items) +
       `<div class="panel"><h3>All items</h3>${filters}${listHtml("library_items", rows, (r) => `<b>${esc(r.title)}</b> <span class="pill">${esc(r.kind)}</span>${r.published ? "" : ` <span class="pill paused">hidden</span>`}${own(r) ? ` <span class="pill booked">Only: ${esc(r.client_ids.map((id) => { const p = DB.profiles.find((x) => x.id === id); return p ? (p.full_name || p.email) : "removed client"; }).join(", "))}</span>` : ` <span class="small muted">· all clients</span>`}${r.description ? `<p class="small muted">${esc(r.description)}</p>` : ""}`)}</div>`;
   }
+  function vBlog() {
+    const rows = DB.articles;
+    return head("For clients", "Blog", "Write articles for the Serene Portal: add a cover picture, format the text, insert photos and add links at the end. Clients see the date and the author.") +
+      formHtml("articles", editing.articles ? "Edit article" : "Write a new article", editing.articles) +
+      `<div class="panel"><h3>All articles</h3>${rows.length ? `<div class="list">${rows.map((r) => `<div class="item"><div class="blog-item">${r.cover_path ? `<img class="blog-thumb" src="${esc(blogImg(r.cover_path))}" alt="">` : `<span class="blog-thumb" aria-hidden="true"></span>`}<div><b>${esc(r.title)}</b>${r.published ? "" : ` <span class="pill paused">hidden</span>`}<p class="small muted">${r.published_on ? fmtDate(r.published_on) : ""}${r.author ? " · " + esc(r.author) : ""}${Array.isArray(r.links) && r.links.length ? ` · ${r.links.length} link${r.links.length === 1 ? "" : "s"}` : ""}</p>${r.excerpt ? `<p class="small muted">${esc(r.excerpt)}</p>` : ""}</div></div>
+        <div class="actions" style="margin:0;flex:none"><a class="btn ghost sm" href="/#blog/${encodeURIComponent(r.id)}" target="_blank" rel="noopener">View</a><button class="btn ghost sm" type="button" data-edit="articles" data-id="${r.id}">Edit</button><button class="btn danger sm" type="button" data-del="articles" data-id="${r.id}">Delete</button></div></div>`).join("")}</div>` : `<p class="muted small">No articles yet. Write the first one above.</p>`}</div>`;
+  }
   function vModalities() {
     return head("What you offer", "Modalities", "Shown to clients in their Serene Portal.") + formHtml("modalities", editing.modalities ? "Edit modality" : "Add a modality", editing.modalities) +
       `<div class="panel"><h3>All modalities</h3>${listHtml("modalities", DB.modalities, (r) => `<b>${esc(r.title)}</b>${r.category ? ` <span class="muted small">· ${esc(r.category)}</span>` : ""}${r.active ? "" : ` <span class="pill paused">hidden</span>`}`)}</div>`;
@@ -789,6 +835,8 @@
       draft = { name: r.name, email: r.email, phone: r.phone, format: fmt, modalities: r.modalities, notes: r.goal ? "Would like to feel: " + r.goal + "\n\n" : "", _from: r.id };
       tab = "clients"; sel = null; editing = {}; render(); window.scrollTo({ top: 0 }); return;
     }
+    if ((el = T("[data-addlink]"))) { $(el.dataset.addlink).querySelector(".lrows").insertAdjacentHTML("beforeend", linkRow({})); const r = $(el.dataset.addlink).querySelectorAll(".lrow"); r[r.length - 1].querySelector("input").focus(); return; }
+    if ((el = T("[data-dellink]"))) { const rows = el.closest(".lrows"); el.closest(".lrow").remove(); if (!rows.children.length) rows.insertAdjacentHTML("beforeend", linkRow({})); return; }
     if ((el = T("[data-addopt]"))) {
       const fs = $(el.dataset.addopt), inp = fs.querySelector(".add-row input"), v = inp.value.replace(/,/g, " ").trim();
       if (!v) return;
