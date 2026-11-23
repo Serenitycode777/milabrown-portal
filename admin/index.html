@@ -99,14 +99,20 @@
       { k: "file_path", t: "file", l: "File (PDF, audio)", bucket: "library", wide: true },
     ],
     articles: [
-      { k: "title", t: "text", l: "Title", req: true, wide: true },
       { k: "author", t: "text", l: "Author", d: "Mila Brown" },
       { k: "published_on", t: "date", l: "Date shown on the article", d: todayStr },
       { k: "published", t: "check", l: "Visible to clients", d: true },
       { k: "cover_path", t: "file", l: "Cover picture (JPG or PNG, wide)", bucket: "blog", accept: "image/*", img: true, wide: true },
+      { t: "section", l: "English version", n: "Clients with the portal in English see the article only when this part is filled in. Leave it empty to keep the article Russian only." },
+      { k: "title", t: "text", l: "Title", wide: true },
       { k: "excerpt", t: "textarea", l: "Short summary (shown in the list of articles)", wide: true },
       { k: "body", t: "rte", l: "Article", wide: true },
       { k: "links", t: "links", l: "Explore further: links at the end of the article", wide: true },
+      { t: "section", l: "Русская версия · Russian version", n: "Clients with the portal in Russian see the article only when this part is filled in. Leave it empty to keep the article English only. For links use Russian pages: the Vedic astrology page with ?lang=ru (e.g. milabrown.pro/vedicastrology/?lang=ru#transits) and booking in the portal (portal.milabrown.pro/?service=12#book)." },
+      { k: "title_ru", t: "text", l: "Заголовок · Title", wide: true },
+      { k: "excerpt_ru", t: "textarea", l: "Краткое описание · Short summary", wide: true },
+      { k: "body_ru", t: "rte", l: "Статья · Article", wide: true },
+      { k: "links_ru", t: "links", l: "Ссылки в конце статьи · Links at the end", wide: true },
     ],
     client_docs: [
       { k: "title", t: "text", l: "Title", req: true, wide: true },
@@ -161,6 +167,7 @@
   };
 
   function fieldHtml(table, f, v) {
+    if (f.t === "section") return `<div class="wide fsec"><h4>${f.l}</h4>${f.n ? `<p class="small muted">${f.n}</p>` : ""}</div>`;
     const id = `${table}-${f.k}`, val = v === undefined || v === null ? (typeof f.d === "function" ? f.d() : f.d ?? "") : v;
     const w = f.wide ? ' class="wide"' : "";
     if (f.t === "check") return `<label class="check"${w}><input type="checkbox" id="${id}" ${val ? "checked" : ""}> ${f.l}</label>`;
@@ -194,6 +201,7 @@
   function readForm(table) {
     const out = {}, files = {};
     for (const f of F[table]) {
+      if (!f.k) continue;
       const el = $(`${table}-${f.k}`); if (!el) continue;
       if (f.t === "check") out[f.k] = el.checked;
       else if (f.t === "file") { if (el.files[0]) files[f.k] = { file: el.files[0], bucket: f.bucket }; }
@@ -317,7 +325,12 @@
       if (!out.file_path && !files.file_path && !out.url && !out.body && !(row && (row.file_path || row.url))) throw new Error("Add a file, a link or the mantra text.");
       if (!row || !row.id) { out.client_ids = [profileId]; out.published = true; }
     }
-    if (table === "articles" && !out.body) throw new Error("Please write the article text.");
+    if (table === "articles") {
+      if (!out.body && !out.body_ru) throw new Error("Please write the article text, in English or in Russian.");
+      if (out.body && !out.title) throw new Error("Please add the English title.");
+      if (out.body_ru && !out.title_ru) throw new Error("Please add the Russian title (Заголовок).");
+      if (!out.title) out.title = null;
+    }
     if (table === "retreat_attendance") { if (!out.retreat_id) out.retreat_id = null; if (!out.retreat_id && !out.title) throw new Error("Choose a retreat or type a title."); }
     for (const [k, v] of Object.entries(files)) out[k] = await upload(v.bucket, v.file, v.bucket === "protocols" ? profileId : "");
     const saved = await write(table, row && row.id, out);
@@ -685,11 +698,14 @@
     return head("For clients", "Library", "Mantras, PDFs, audio and webinar links. Share with all clients, or only with the clients you choose (they find it in Library → My Docs).") + formHtml("library_items", editing.library_items ? "Edit library item" : "Add a library item", editing.library_items) +
       `<div class="panel"><h3>All items</h3>${filters}${listHtml("library_items", rows, (r) => `<b>${esc(r.title)}</b> <span class="pill">${esc(r.kind)}</span>${r.published ? "" : ` <span class="pill paused">hidden</span>`}${own(r) ? ` <span class="pill booked">Only: ${esc(r.client_ids.map((id) => { const p = DB.profiles.find((x) => x.id === id); return p ? (p.full_name || p.email) : "removed client"; }).join(", "))}</span>` : ` <span class="small muted">· all clients</span>`}${r.description ? `<p class="small muted">${esc(r.description)}</p>` : ""}`)}</div>`;
   }
+  const SUF = { en: "", ru: "_ru" };
+  const hasTxt = (v) => !!(v && String(v).replace(/<[^>]+>/g, "").trim());
+  const langPills = (r) => ["en", "ru"].map((c) => hasTxt(r["body" + SUF[c]]) ? `<span class="pill active">${c.toUpperCase()}</span>` : `<span class="pill">no ${c === "ru" ? "Russian" : "English"}</span>`).join(" ");
   function vBlog() {
     const rows = DB.articles;
     return head("For clients", "Blog", "Write articles for the Serene Portal: add a cover picture, format the text, insert photos and add links at the end. Clients see the date and the author.") +
       formHtml("articles", editing.articles ? "Edit article" : "Write a new article", editing.articles) +
-      `<div class="panel"><h3>All articles</h3>${rows.length ? `<div class="list">${rows.map((r) => `<div class="item"><div class="blog-item">${r.cover_path ? `<img class="blog-thumb" src="${esc(blogImg(r.cover_path))}" alt="">` : `<span class="blog-thumb" aria-hidden="true"></span>`}<div><b>${esc(r.title)}</b>${r.published ? "" : ` <span class="pill paused">hidden</span>`}<p class="small muted">${r.published_on ? fmtDate(r.published_on) : ""}${r.author ? " · " + esc(r.author) : ""}${Array.isArray(r.links) && r.links.length ? ` · ${r.links.length} link${r.links.length === 1 ? "" : "s"}` : ""}</p>${r.excerpt ? `<p class="small muted">${esc(r.excerpt)}</p>` : ""}</div></div>
+      `<div class="panel"><h3>All articles</h3>${rows.length ? `<div class="list">${rows.map((r) => `<div class="item"><div class="blog-item">${r.cover_path ? `<img class="blog-thumb" src="${esc(blogImg(r.cover_path))}" alt="">` : `<span class="blog-thumb" aria-hidden="true"></span>`}<div><b>${esc(r.title || r.title_ru)}</b>${r.published ? "" : ` <span class="pill paused">hidden</span>`} ${langPills(r)}<p class="small muted">${r.published_on ? fmtDate(r.published_on) : ""}${r.author ? " · " + esc(r.author) : ""}${Array.isArray(r.links) && r.links.length ? ` · ${r.links.length} link${r.links.length === 1 ? "" : "s"}` : ""}</p>${r.excerpt ? `<p class="small muted">${esc(r.excerpt)}</p>` : ""}</div></div>
         <div class="actions" style="margin:0;flex:none"><a class="btn ghost sm" href="/#blog/${encodeURIComponent(r.id)}" target="_blank" rel="noopener">View</a><button class="btn ghost sm" type="button" data-edit="articles" data-id="${r.id}">Edit</button><button class="btn danger sm" type="button" data-del="articles" data-id="${r.id}">Delete</button></div></div>`).join("")}</div>` : `<p class="muted small">No articles yet. Write the first one above.</p>`}</div>`;
   }
   function vModalities() {
