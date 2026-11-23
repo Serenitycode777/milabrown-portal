@@ -98,7 +98,7 @@
 
 <script>
 (function () {
-  const { DEMO, sb, withTimeout, esc, fmtDate, today, toast, fileUrl, flower, sendLink, DEMO_DATA, setLang, getLang } = S;
+  const { DEMO, sb, withTimeout, esc, fmtDate, today, toast, fileUrl, flower, sendLink, DEMO_DATA, setLang, getLang, blogImg, cleanHtml } = S;
   const $ = (id) => document.getElementById(id);
 
   // ---------- interface text, English and Russian ----------
@@ -122,7 +122,7 @@
       openPreview: "Open the preview", linkSent: (e) => `Check your inbox. We sent a sign-in link to <b>${e}</b>. Open it on this device.`,
       badEmail: "Please enter a valid email address.", opening: "Opening your Serene Portal…", slow: "The connection is slow right now. Please check your internet and try again.", notConfirmed: "Your invitation isn’t accepted yet. Open the invitation email from Mila and create your password there, or use “Email me a sign-in link instead”.", tooMany: "Too many attempts. Please wait a few minutes and try again.", loadFail: "We couldn't load your space. Please refresh the page, or sign in again.",
       signOut: "Sign out", saveFail: "Couldn't save. Please try again.", fileDemo: "In the live portal this opens the file.",
-      nav: { home: "Home", modalities: "Modalities", book: "Book a session", services: "My services", protocols: "My protocols", retreats: "Retreats", library: "Library", profile: "My profile" },
+      nav: { home: "Home", modalities: "Modalities", book: "Book a session", services: "My services", protocols: "My protocols", retreats: "Retreats", library: "Library", blog: "Blog", profile: "My profile" },
       welcomeEyebrow: "Welcome to your Serene Portal", hello: "Hello", welcomeText: "Everything from our work together lives here: your protocols, past sessions and retreats, plus mantras, guides and recordings for your practice.",
       activeProtocols: (n) => `active protocol${n === 1 ? "" : "s"}`, sessionsWith: (n) => `session${n === 1 ? "" : "s"} with Mila`, retreatsN: (n) => `retreat${n === 1 ? "" : "s"}`, libItems: "library items",
       currentProtocol: "Current protocol", openProtocol: "Open protocol", noActive: "No active protocol", noActiveText: "When Mila prepares your personal plan, it will appear here.",
@@ -147,6 +147,8 @@
       save: "Save changes", saved: "Saved", loginEmail: "Login email", changeEmail: "Change email", newEmail: "New email",
       emailNote: "We'll send a confirmation link to the new address. Your login changes after you open it.", emailSent: "Confirmation sent. Check both inboxes.", emailFail: "Couldn't change the email. Please try again.",
       emailDemo: "In the live portal a confirmation link is sent.", nameTooLong: "Please keep the name under 120 characters.",
+      blogEyebrow: "From Mila", blogText: "Articles on Ayurveda, yoga, sound, Jyotish and living in balance.", blogEmpty: "Mila's articles will appear here soon.",
+      readArticle: "Read article", allArticles: "All articles", explore: "Explore further", by: "by", latestArticle: "Latest article", minRead: (n) => `${n} min read`, notFound: "This article isn't available any more.",
     },
     ru: {
       demo: "Предпросмотр с примерами · данные не настоящие",
@@ -167,7 +169,7 @@
       openPreview: "Открыть предпросмотр", linkSent: (e) => `Проверьте почту. Мы отправили ссылку для входа на <b>${e}</b>. Откройте её на этом устройстве.`,
       badEmail: "Введите корректный email.", opening: "Открываем ваше пространство…", slow: "Связь сейчас медленная. Проверьте интернет и попробуйте ещё раз.", notConfirmed: "Приглашение ещё не принято. Откройте письмо-приглашение от Милы и создайте пароль, или нажмите «Прислать ссылку для входа на email».", tooMany: "Слишком много попыток. Подождите несколько минут и попробуйте снова.", loadFail: "Не удалось загрузить ваше пространство. Обновите страницу или войдите снова.",
       signOut: "Выйти", saveFail: "Не удалось сохранить. Попробуйте ещё раз.", fileDemo: "В рабочем портале здесь откроется файл.",
-      nav: { home: "Главная", modalities: "Практики", book: "Записаться", services: "Мои сессии", protocols: "Мои протоколы", retreats: "Ретриты", library: "Библиотека", profile: "Мой профиль" },
+      nav: { home: "Главная", modalities: "Практики", book: "Записаться", services: "Мои сессии", protocols: "Мои протоколы", retreats: "Ретриты", library: "Библиотека", blog: "Блог", profile: "Мой профиль" },
       welcomeEyebrow: "Добро пожаловать в ваш Serene Portal", hello: "Здравствуйте", welcomeText: "Здесь собрано всё о нашей совместной работе: ваши протоколы, прошедшие сессии и ретриты, а также мантры, гайды и записи для практики.",
       activeProtocols: () => "активные протоколы", sessionsWith: () => "сессии с Милой", retreatsN: () => "ретриты", libItems: "материалы в библиотеке",
       currentProtocol: "Текущий протокол", openProtocol: "Открыть протокол", noActive: "Нет активного протокола", noActiveText: "Когда Мила подготовит ваш личный план, он появится здесь.",
@@ -192,11 +194,13 @@
       save: "Сохранить", saved: "Сохранено", loginEmail: "Email для входа", changeEmail: "Изменить email", newEmail: "Новый email",
       emailNote: "Мы отправим ссылку для подтверждения на новый адрес. Email для входа изменится после того, как вы её откроете.", emailSent: "Подтверждение отправлено. Проверьте обе почты.", emailFail: "Не удалось изменить email. Попробуйте ещё раз.",
       emailDemo: "В рабочем портале будет отправлена ссылка для подтверждения.", nameTooLong: "Имя должно быть короче 120 символов.",
+      blogEyebrow: "От Милы", blogText: "Статьи об аюрведе, йоге, звуке, Джйотише и жизни в балансе.", blogEmpty: "Скоро здесь появятся статьи Милы.",
+      readArticle: "Читать статью", allArticles: "Все статьи", explore: "Узнать больше", by: "автор", latestArticle: "Новая статья", minRead: (n) => `${n} мин чтения`, notFound: "Эта статья больше недоступна.",
     },
   };
   const T = () => TXT[getLang()];
 
-  const D = { profile: null, modalities: [], services: [], protocols: [], attendance: [], retreats: [], library: [], favs: [] };
+  const D = { profile: null, modalities: [], services: [], protocols: [], attendance: [], retreats: [], library: [], favs: [], articles: [] };
   let current = "home", libFilter = "all";
   $("login-flower").innerHTML = flower("flower");
 
@@ -208,6 +212,7 @@
     protocols: '<path d="M7 3h8l4 4v14H7z"/><path d="M15 3v4h4M10 12l2 2 4-4"/>',
     retreats: '<path d="M3 20h18M6 20l6-14 6 14M9.5 13h5"/>',
     library: '<path d="M5 4h4v16H5zM10 4h4v16h-4zM15.5 4.5l3.8 1-3.8 14.6-3.6-1"/>',
+    blog: '<path d="M5 4h10l4 4v12H5z"/><path d="M15 4v4h4M8 12h8M8 15.5h8M8 9h4"/>',
     profile: '<circle cx="12" cy="8" r="4"/><path d="M4 20a8 8 0 0 1 16 0"/>',
   };
 
@@ -285,7 +290,7 @@
     const route = (session) => {
       routed = true;
       // signed out: forget the previous person, so the next sign-in loads fresh
-      if (!session) { if (D.profile && D.profile.id) Object.assign(D, { profile: null, modalities: [], services: [], protocols: [], attendance: [], retreats: [], library: [], favs: [] }); showLogin(); return; }
+      if (!session) { if (D.profile && D.profile.id) Object.assign(D, { profile: null, modalities: [], services: [], protocols: [], attendance: [], retreats: [], library: [], favs: [], articles: [] }); showLogin(); return; }
       if (D.profile && D.profile.id && D.profile.id !== session.user.id) D.profile = null;
       if (pwMode) showSetPw(); else load(session.user);
     };
@@ -388,13 +393,14 @@
         sb.from("retreats").select("*").eq("published", true).order("starts_on", { ascending: true, nullsFirst: true }),
         sb.from("library_items").select("*").eq("published", true).order("created_at", { ascending: false }),
         sb.from("library_favorites").select("item_id").eq("client_id", user.id).then((r) => ({ data: r.error ? [] : r.data })),
+        sb.from("articles").select("*").eq("published", true).order("published_on", { ascending: false }).order("created_at", { ascending: false }).then((r) => ({ data: r.error ? [] : r.data })),
       ]), 25000);
       const bad = q.find((r) => r.error);
       if (bad) throw bad.error;
       start({ profile: q[0].data || { id: user.id, email: user.email, language: getLang() }, modalities: q[1].data, services: q[2].data, protocols: q[3].data,
         attendance: q[4].data, retreats: q[5].data,
         library: (q[6].data || []).filter((x) => !Array.isArray(x.client_ids) || !x.client_ids.length || x.client_ids.includes(user.id)),
-        favs: (q[7].data || []).map((f) => f.item_id) });
+        favs: (q[7].data || []).map((f) => f.item_id), articles: q[8].data || [] });
     } catch (err) {
       $("boot").hidden = true; $("login").hidden = false; $("app").hidden = true;
       $("login-err").textContent = err && err.code === "timeout" ? T().slow : T().loadFail; $("login-err").hidden = false;
@@ -415,14 +421,19 @@
   function whoName() { $("who-name").textContent = D.profile.full_name || D.profile.email || ""; }
 
   // ---------- navigation ----------
-  const VIEWS = { home, modalities, book, services, protocols, retreats, library, profile };
+  const VIEWS = { home, modalities, book, services, protocols, retreats, library, blog, profile };
+  let postId = "";
   function go(name) {
+    name = String(name || "");
+    postId = name.startsWith("blog/") ? decodeURIComponent(name.slice(5)) : "";
+    if (postId) name = "blog";
     if (!VIEWS[name]) name = "home";
     current = name;
     applyStatic();
     $("view").innerHTML = VIEWS[name](); addEyes(); reqBar(); loadBookingWidget();
     const act = document.querySelector('#nav [aria-current="page"]'); if (act && act.scrollIntoView) act.scrollIntoView({ block: "nearest", inline: "nearest" });
-    if (location.hash !== "#" + name) history.replaceState(null, "", "#" + name);
+    const h = "#" + name + (postId ? "/" + encodeURIComponent(postId) : "");
+    if (location.hash !== h) history.replaceState(null, "", h);
     window.scrollTo({ top: 0 });
   }
   document.addEventListener("click", (e) => {
@@ -521,7 +532,32 @@
           : `<article class="card"><span class="tag">${t.nav.protocols}</span><h3>${t.noActive}</h3><p class="muted">${t.noActiveText}</p></article>`}
         ${last ? `<article class="card"><span class="tag">${t.lastSession} · ${fmtDate(last.service_date)}</span><h3>${esc(last.modality)}</h3>${last.notes ? `<p class="muted">${esc(last.notes)}</p>` : ""}<div class="actions"><button class="btn ghost sm" type="button" data-go="services">${t.allSessions}</button></div></article>` : ""}
         <article class="card"><span class="tag">${t.practice}</span><h3>${t.yourLibrary}</h3><p class="muted">${t.libraryText}</p><div class="actions"><button class="btn ghost sm" type="button" data-go="library">${t.openLibrary}</button></div></article>
+        ${(D.articles || []).length ? (() => { const a = D.articles[0]; return `<article class="card"><span class="tag">${t.latestArticle} · ${fmtDate(a.published_on)}</span><h3>${esc(a.title)}</h3>${a.excerpt ? `<p class="muted">${esc(a.excerpt)}</p>` : ""}<div class="actions"><button class="btn ghost sm" type="button" data-go="blog/${esc(a.id)}">${t.readArticle}</button></div></article>`; })() : ""}
       </div>`;
+  }
+
+  // ---------- blog: Mila's articles ----------
+  const readMins = (html) => { const w = String(html || "").replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length; return Math.max(1, Math.round(w / 200)); };
+  const byline = (a) => `<time datetime="${esc(a.published_on || "")}">${fmtDate(a.published_on || String(a.created_at || "").slice(0, 10))}</time>${a.author ? ` · ${T().by} ${esc(a.author)}` : ""} · ${T().minRead(readMins(a.body))}`;
+  function blog() {
+    const t = T(), list = D.articles || [];
+    if (postId) {
+      const a = list.find((x) => String(x.id) === postId);
+      if (!a) return `<p><button class="btn ghost sm" type="button" data-go="blog">← ${t.allArticles}</button></p>` + empty(t.notFound);
+      const links = (Array.isArray(a.links) ? a.links : []).filter((l) => l && /^https?:\/\//i.test(l.url || ""));
+      return `<article class="post">
+        <p class="post-back"><button class="btn ghost sm" type="button" data-go="blog">← ${t.allArticles}</button></p>
+        ${a.cover_path ? `<img class="post-cover" src="${esc(blogImg(a.cover_path))}" alt="">` : ""}
+        <header class="post-head"><p class="eyebrow">${t.blogEyebrow}</p><h2>${esc(a.title)}</h2><p class="post-meta">${byline(a)}</p></header>
+        <div class="post-body">${cleanHtml(a.body)}</div>
+        ${links.length ? `<aside class="post-links" aria-label="${t.explore}"><h3>${t.explore}</h3><ul>${links.map((l) => `<li><a href="${esc(l.url)}" target="_blank" rel="noopener">${esc(l.label || l.url)}</a></li>`).join("")}</ul></aside>` : ""}
+      </article>`;
+    }
+    const h = head(t.blogEyebrow, t.nav.blog, t.blogText);
+    if (!list.length) return h + empty(t.blogEmpty);
+    return h + `<div class="posts">${list.map((a, i) => `<article class="post-card${i === 0 ? " first" : ""}"><a class="post-link" href="#blog/${encodeURIComponent(a.id)}" data-go="blog/${esc(a.id)}">
+      ${a.cover_path ? `<img class="post-card-img" src="${esc(blogImg(a.cover_path))}" alt="" loading="lazy">` : `<span class="post-card-img ph" aria-hidden="true">${flower("pf")}</span>`}
+      <span class="post-card-text"><span class="post-meta">${byline(a)}</span><h3>${esc(a.title)}</h3>${a.excerpt ? `<span class="muted">${esc(a.excerpt)}</span>` : ""}<span class="post-more">${t.readArticle} →</span></span></a></article>`).join("")}</div>`;
   }
 
   // Requests from the Modalities page: tap the small circle on cards, then send
