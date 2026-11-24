@@ -445,3 +445,30 @@ input[type=radio]{width:18px;height:18px;padding:0;accent-color:var(--indigo);fl
 .fsec:first-of-type{margin-top:0}
 .fsec h4{margin:0 0 4px;font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--indigo);font-weight:600}
 .fsec p{margin:0}
+/* Admin: CRM contact table (Requests → CRM) */
+.crm-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:4px 0 8px}
+.crm-up{cursor:pointer}
+.crm-bar .check{margin-left:auto}
+.crm-imp{border:1px solid var(--gold)}
+.crm-imp p{margin:6px 0}
+.crm-wrap{overflow-x:auto;background:#fff;border:1px solid var(--mist);border-radius:16px;margin-top:10px}
+table.crm{width:100%;border-collapse:collapse;font-size:.9rem;min-width:760px}
+table.crm th{text-align:left;font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--mauve);font-weight:500;padding:12px 10px;border-bottom:1px solid var(--mist);background:#fbfafb;position:sticky;top:0}
+table.crm td{padding:3px 6px;border-bottom:1px solid var(--mist)}
+table.crm tr:last-child td{border-bottom:0}
+table.crm .c{text-align:center;width:64px}
+table.crm input:not([type=checkbox]){width:100%;border:1px solid transparent;background:transparent;border-radius:8px;padding:7px 8px;font:inherit;color:inherit}
+table.crm input:not([type=checkbox]):hover{border-color:var(--stone)}
+table.crm input:not([type=checkbox]):focus{border-color:var(--indigo);background:#fff;outline:none}
+table.crm input[type=checkbox]{width:18px;height:18px;accent-color:var(--indigo);cursor:pointer}
+table.crm input.saved{background:#e1f3f4}
+table.crm td:nth-child(5){min-width:170px}
+.crm-del{color:var(--danger);font-size:.8rem;white-space:nowrap}
+/* Serene Portal: purple top line (the admin keeps its gold one) */
+.top:not(.top-admin){background:linear-gradient(120deg,#3f3266 0%,#5b4b88 60%,#6d5c9c 100%);border-bottom:1px solid #2f2650;box-shadow:0 8px 22px -16px rgba(36,29,64,.9)}
+.top:not(.top-admin) .brand{color:var(--cream)}
+.top:not(.top-admin) .brand small{color:var(--gold)}
+.top:not(.top-admin) .who-btn{color:rgba(250,242,221,.85)}
+.top:not(.top-admin) .who-btn:hover,.top:not(.top-admin) .who-btn:focus-visible{color:#fff;border-bottom-color:var(--gold)}
+.top:not(.top-admin) .btn.ghost{border-color:rgba(250,242,221,.55);color:var(--cream);background:transparent}
+.top:not(.top-admin) .btn.ghost:hover{background:var(--cream);color:#3f3266;border-color:var(--cream)}
