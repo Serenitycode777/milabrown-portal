@@ -56,9 +56,9 @@
   const PREF = { email: "Email", phone: "Phone call", whatsapp: "WhatsApp", telegram: "Telegram" };
 
   let tab = "requests", sel = null, draft = null, editing = {}, reqFilter = "new", cliFilter = "all", arcFilter = "all", libAud = "all", libWho = "", emFilter = "all", emBox = "inbox", inboxState = DEMO ? "ok" : "";
-  const qs = { requests: "", clients: "", archive: "", emails: "" };
+  const qs = { requests: "", clients: "", archive: "", emails: "", crm: "" };
   let bookSvc = "", bookWho = "", bookEmail = "";
-  const DB = { inquiries: [], milabrownclients: [], profiles: [], modalities: [], library_items: [], retreats: [], client_services: [], protocols: [], retreat_attendance: [], email_log: [], email_inbox: [], bookings: [], articles: [] };
+  const DB = { inquiries: [], milabrownclients: [], profiles: [], modalities: [], library_items: [], retreats: [], client_services: [], protocols: [], retreat_attendance: [], email_log: [], email_inbox: [], bookings: [], articles: [], crm_contacts: [] };
   const PORTAL_TABLES = ["client_services", "protocols", "retreat_attendance"];
   const bucketOf = (table) => table === "protocols" ? "protocols" : "library";
   // A client's documents are library items shared only with them: same rows, shown on the client page
@@ -229,7 +229,7 @@
   async function loadAll() {
     if (DEMO) { if (!DB.profiles.length) demoData(); return; }
     const opt = (p) => p.then((r) => (r.error ? [] : r.data)); // old tables may be missing in a fresh project
-    const [inq, crm, p, m, l, r, em, inb, bk, ar] = await Promise.all([
+    const [inq, crm, p, m, l, r, em, inb, bk, ar, crmAll] = await Promise.all([
       opt(sb.from("inquiries").select("*").order("created_at", { ascending: false })),
       opt(sb.from("milabrownclients").select("*").order("created_at", { ascending: false })),
       q(sb.from("profiles").select("*").order("created_at", { ascending: false })),
@@ -240,7 +240,9 @@
       opt(sb.from("email_inbox").select("*").eq("archived", false).order("received_at", { ascending: false }).limit(500)),
       opt(sb.from("bookings").select("*").order("created_at", { ascending: false }).limit(50)),
       opt(sb.from("articles").select("*").order("published_on", { ascending: false }).order("created_at", { ascending: false })),
+      loadCrm(),
     ]);
+    DB.crm_contacts = crmAll;
     Object.assign(DB, { inquiries: inq, milabrownclients: crm, profiles: p, modalities: m, library_items: l, retreats: r, email_log: em, email_inbox: inb, bookings: bk, articles: ar });
   }
   async function loadPortal(profileId) {
@@ -279,6 +281,12 @@
     ];
     DB.profiles = [{ id: "demo", email: "anna@example.com", full_name: "Anna Example", phone: "", language: "en", contact_pref: "whatsapp" }];
     DB.articles = d.articles || [];
+    DB.crm_contacts = [
+      { id: "k1", created_at: "2026-11-01T10:00:00", name: "Natalia Ivanova", email: "natalia@example.com", phone: "+1 919 555 0101", news: true, tags: "RUS, Serenity Moon" },
+      { id: "k2", created_at: "2026-11-01T10:00:00", name: "Jessica Moore", email: "jessica@example.com", phone: "", news: true, tags: "ENG, Fest 2025" },
+      { id: "k3", created_at: "2026-11-01T10:00:00", name: "Anna Example", email: "anna@example.com", phone: "", news: false, tags: "VIP" },
+      { id: "k4", created_at: "2026-11-01T10:00:00", name: "Maria Lopez", email: "maria@example.com", phone: "+1 919 555 0177", news: false, tags: "" },
+    ];
     DB.modalities = d.modalities; DB.library_items = d.library.map((x) => ({ published: true, ...x })); DB.retreats = d.retreats;
     DB.client_services = d.services.map((x) => ({ ...x, client_id: "demo" }));
     DB.protocols = d.protocols.map((x) => ({ ...x, client_id: "demo" }));
@@ -520,26 +528,40 @@
       <div class="actions"><button class="btn" type="submit" id="bulk-send">Send</button><button class="btn ghost" type="button" data-bulkclose>Cancel</button></div>
     </form></dialog>`);
   let bulk = { mode: "all", tags: [], picked: new Set(), find: "", busy: false };
-  const audience = () => people().filter((p) => !(p.crm && p.crm.archived)).map((p) => ({ key: p.key, name: /@|^\(no name\)$/.test(nameOf(p)) ? "" : nameOf(p), email: ((p.crm && p.crm.email) || (p.prof && p.prof.email) || "").trim(), tags: split(p.crm && p.crm.categories) }))
-    .filter((x) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x.email)).sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email));
-  const bulkList = () => { const a = audience(); return bulk.mode === "all" ? a : bulk.mode === "tag" ? a.filter((x) => x.tags.some((t) => bulk.tags.includes(t))) : a.filter((x) => bulk.picked.has(x.key)); };
+  // Everyone with an email: client cards and Serene Portal accounts, plus the CRM contacts (Requests → CRM), matched by email
+  const audience = () => {
+    const list = people().filter((p) => !(p.crm && p.crm.archived)).map((p) => ({ key: p.key, client: true, news: false, name: /@|^\(no name\)$/.test(nameOf(p)) ? "" : nameOf(p), email: ((p.crm && p.crm.email) || (p.prof && p.prof.email) || "").trim(), tags: split(p.crm && p.crm.categories) }))
+      .filter((x) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x.email));
+    for (const c of DB.crm_contacts || []) {
+      if (!c.email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email)) continue;
+      const same = list.find((x) => x.email.toLowerCase() === c.email.toLowerCase());
+      if (same) { same.news = same.news || !!c.news; same.tags = [...new Set([...same.tags, ...split(c.tags)])]; if (!same.name && c.name) same.name = c.name; }
+      else list.push({ key: "k:" + c.id, client: false, news: !!c.news, name: c.name || "", email: c.email, tags: split(c.tags) });
+    }
+    return list.sort((a, b) => (a.name || a.email).localeCompare(b.name || b.email));
+  };
+  const hasTag = (x, tags) => x.tags.some((t) => tags.includes(normTag(t)));
+  const bulkList = () => { const a = audience(); return bulk.mode === "all" ? a.filter((x) => x.client) : bulk.mode === "news" ? a.filter((x) => x.news) : bulk.mode === "tag" ? a.filter((x) => hasTag(x, bulk.tags)) : a.filter((x) => bulk.picked.has(x.key)); };
   function bulkDraw() {
-    const a = audience(), tags = [...new Set([...CATS, ...a.flatMap((x) => x.tags)])];
-    $("bulk-modes").innerHTML = [["all", `All clients · ${a.length}`], ["tag", "By tag"], ["pick", "Choose people"]].map(([v, t]) => `<button class="chip" type="button" data-bmode="${v}" aria-pressed="${v === bulk.mode}">${t}</button>`).join("");
+    const a = audience(), seen = new Map();
+    for (const t of [...CATS, ...a.flatMap((x) => x.tags)]) if (!seen.has(normTag(t))) seen.set(normTag(t), t);
+    const tags = [...seen.values()];
+    $("bulk-modes").innerHTML = [["all", `All clients · ${a.filter((x) => x.client).length}`], ["news", `News list · ${a.filter((x) => x.news).length}`], ["tag", "By tag"], ["pick", "Choose people"]].map(([v, t]) => `<button class="chip" type="button" data-bmode="${v}" aria-pressed="${v === bulk.mode}">${t}</button>`).join("");
     let pick = "";
-    if (bulk.mode === "tag") pick = `<div class="filters" role="group" aria-label="Tags">${tags.map((t) => { const n = a.filter((x) => x.tags.includes(t)).length; return `<button class="chip" type="button" data-btag="${esc(t)}" aria-pressed="${bulk.tags.includes(t)}">${esc(t)} · ${n}</button>`; }).join("")}</div><p class="small muted">Pick one or more tags. Anyone with any of them gets the email.</p>`;
+    if (bulk.mode === "tag") pick = `<div class="filters" role="group" aria-label="Tags">${tags.map((t) => { const n = a.filter((x) => hasTag(x, [normTag(t)])).length; return `<button class="chip" type="button" data-btag="${esc(normTag(t))}" aria-pressed="${bulk.tags.includes(normTag(t))}">${esc(t)} · ${n}</button>`; }).join("")}</div><p class="small muted">Pick one or more tags. Anyone with any of them gets the email.</p>`;
     if (bulk.mode === "pick") {
       const f = bulk.find.toLowerCase(), shown = a.filter((x) => !f || [x.name, x.email, x.tags.join(" ")].join(" ").toLowerCase().includes(f));
       pick = `<input class="search" type="search" id="bulk-find" value="${esc(bulk.find)}" placeholder="Search name, email, tag…" aria-label="Search people">
         <div class="bulk-people">${shown.map((x) => `<label class="check"><input type="checkbox" data-bpick="${esc(x.key)}" ${bulk.picked.has(x.key) ? "checked" : ""}> <span><b>${esc(x.name || x.email)}</b> <span class="muted small">${esc(x.email)}${x.tags.length ? " · " + esc(x.tags.join(", ")) : ""}</span></span></label>`).join("") || `<p class="small muted">No one matches.</p>`}</div>`;
     }
+    if (bulk.mode === "news") pick = `<p class="small muted">Everyone with <b>News</b> ticked in Requests → CRM.</p>`;
     $("bulk-pick").innerHTML = pick;
     const list = bulkList();
     $("bulk-sum").innerHTML = list.length ? `Will send to <b>${list.length}</b> ${list.length === 1 ? "person" : "people"}: <span class="muted">${list.slice(0, 8).map((x) => esc(x.name || x.email)).join(", ")}${list.length > 8 ? ` and ${list.length - 8} more` : ""}</span>` : `<span class="muted">No one chosen yet.</span>`;
     if (!bulk.busy) { $("bulk-send").disabled = !list.length; $("bulk-send").textContent = list.length ? `Send to ${list.length}` : "Send"; }
   }
-  function openBulk() {
-    bulk = { mode: "all", tags: [], picked: new Set(), find: "", busy: false };
+  function openBulk(mode) {
+    bulk = { mode: mode || "all", tags: [], picked: new Set(), find: "", busy: false };
     $("bulk-subj").value = ""; $("bulk-msg").innerHTML = ""; $("bulk-hi").checked = true; $("bulk-cc").checked = false; document.querySelectorAll("#bulk-dlg .rte-emoji").forEach((x) => (x.hidden = true)); $("bulk-err").hidden = true;
     bulkDraw(); $("bulk-dlg").showModal(); $("bulk-subj").focus();
   }
@@ -592,6 +614,151 @@
     $("bulk-dlg").close(); toast(DEMO ? `Preview: in the live admin this goes to ${ok} ${ok === 1 ? "person" : "people"}.` : `Email sent to ${ok} ${ok === 1 ? "person" : "people"}`); render();
   });
 
+  // ---------- CRM: Mila's contact database (Requests → CRM). Upload a CSV or Excel file, tick News, add tags ----------
+  let crmLimit = 200, crmNewsOnly = false, crmImport = null;
+  const normTag = (t) => t.trim().toLowerCase();
+  const crmMatch = (c, s) => !s || [c.name, c.email, c.phone, c.tags, c.notes].join(" ").toLowerCase().includes(s);
+  function vCrm() {
+    const s = qs.crm.toLowerCase(), all = DB.crm_contacts;
+    const rows = all.filter((c) => (!crmNewsOnly || c.news) && crmMatch(c, s));
+    const news = all.filter((c) => c.news && c.email).length;
+    const imp = crmImport ? `<div class="panel crm-imp"><h3>Import “${esc(crmImport.file)}”</h3>
+        <p>Found <b>${crmImport.rows.length}</b> contacts: <b>${crmImport.fresh}</b> new, <b>${crmImport.known}</b> already in your CRM (their details are updated, tags are added)${crmImport.noEmail ? `, ${crmImport.noEmail} without an email` : ""}.</p>
+        <p class="small muted">Columns used: ${crmImport.cols.map(([k, h]) => `<b>${esc(k)}</b> ← “${esc(h)}”`).join(" · ") || "none"}${crmImport.skipped.length ? `. Not used: ${esc(crmImport.skipped.join(", "))}` : ""}</p>
+        ${crmImport.hasNews ? "" : `<label class="check"><input type="checkbox" id="crm-imp-news"> Tick <b>News</b> for the new contacts from this file</label>`}
+        <label for="crm-imp-tag" style="max-width:360px">Add a tag to everyone in this file (optional)<input id="crm-imp-tag" type="text" placeholder="e.g. Fest 2025"></label>
+        <div class="actions"><button class="btn" type="button" data-crmimport>Import ${crmImport.rows.length} contacts</button><button class="btn ghost" type="button" data-crmimpcancel>Cancel</button></div></div>` : "";
+    const table = rows.length ? `<div class="crm-wrap"><table class="crm"><thead><tr><th>Name</th><th>Email</th><th>Phone</th><th class="c">News</th><th>Tags</th><th aria-label="Delete"></th></tr></thead><tbody>
+        ${rows.slice(0, crmLimit).map((c) => `<tr data-crm="${esc(c.id)}"><td><input data-cf="name" value="${esc(c.name || "")}" aria-label="Name" placeholder="Name"></td><td><input data-cf="email" type="email" value="${esc(c.email || "")}" aria-label="Email" placeholder="email@…"></td><td><input data-cf="phone" value="${esc(c.phone || "")}" aria-label="Phone"></td>
+          <td class="c"><input type="checkbox" data-cf="news" ${c.news ? "checked" : ""} aria-label="News"></td><td><input data-cf="tags" value="${esc(c.tags || "")}" placeholder="add a tag" aria-label="Tags"></td><td><button class="linkbtn crm-del" type="button" data-crmdel="${esc(c.id)}" aria-label="Delete contact">✕</button></td></tr>`).join("")}
+      </tbody></table></div>${rows.length > crmLimit ? `<p><button class="btn ghost sm" type="button" data-crmmore>Show more (${rows.length - crmLimit} left)</button></p>` : ""}`
+      : `<div class="empty">${all.length ? "No contacts match." : "No contacts yet. Upload your client list (CSV or Excel) or add a contact."}</div>`;
+    return head("From your websites", "Requests", `CRM: ${all.length} contacts · ${news} on the News list. Upload your client database, tick News and add tags, then send from Emails → New email.`) +
+      `<div class="toolbar">${chips("req", reqFilter, REQ_CHIPS())}${search("crm", "Search name, email, tag…")}</div>
+      <div class="crm-bar"><label class="btn sm crm-up">Upload CSV or Excel<input type="file" id="crm-file" accept=".csv,.txt,.xlsx,.xls" hidden></label>
+        <button class="btn ghost sm" type="button" data-crmadd>+ Add contact</button>
+        <button class="btn ghost sm" type="button" data-crmmail ${news ? "" : "disabled"}>Email the News list · ${news}</button>
+        <label class="check small"><input type="checkbox" id="crm-newsonly" ${crmNewsOnly ? "checked" : ""}> Only News</label></div>
+      <p class="small muted">Tags: one or more words separated by commas (e.g. <i>RUS, Fest</i>). In Emails → New email you can send to the News list or to everyone with a tag. Changes save as you type.</p>
+      ${imp}${table}`;
+  }
+  const REQ_CHIPS = () => [["new", "New"], ["done", "Contacted"], ["all", "All"], ["crm", `CRM · ${DB.crm_contacts.length}`]];
+
+  // Reading the file: CSV (comma or semicolon) or Excel (first sheet)
+  function parseCsv(text) {
+    text = text.replace(/^\uFEFF/, "");
+    const first = text.split(/\r?\n/)[0] || "", delim = [";", "\t", ","].sort((a, b) => first.split(b).length - first.split(a).length)[0];
+    const out = []; let row = [], cell = "", q = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (q) { if (ch === '"') { if (text[i + 1] === '"') { cell += '"'; i++; } else q = false; } else cell += ch; continue; }
+      if (ch === '"') q = true; else if (ch === delim) { row.push(cell); cell = ""; } else if (ch === "\n" || ch === "\r") { if (ch === "\r" && text[i + 1] === "\n") i++; row.push(cell); out.push(row); row = []; cell = ""; } else cell += ch;
+    }
+    if (cell || row.length) { row.push(cell); out.push(row); }
+    return out;
+  }
+  let xlsxLoading = null;
+  const loadXlsx = () => xlsxLoading || (xlsxLoading = new Promise((ok, no) => { const s = document.createElement("script"); s.src = "https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"; s.onload = () => ok(window.XLSX); s.onerror = () => { xlsxLoading = null; no(new Error("Couldn't load the Excel reader. Save the file as CSV and try again.")); }; document.head.appendChild(s); }));
+  async function readTable(file) {
+    if (/\.(xlsx|xls)$/i.test(file.name)) {
+      const X = await loadXlsx(), wb = X.read(await file.arrayBuffer(), { type: "array" });
+      return X.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: "" });
+    }
+    return parseCsv(await file.text());
+  }
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const COLS = [["email", /e-?mail|почт|эл\.? ?адрес/i], ["phone", /phone|tel|mobile|cell|whats|телефон|моб/i], ["first", /^first|given|^имя$/i], ["last", /^last|surname|family|фамил/i],
+    ["name", /name|имя|фио|client|клиент|contact|контакт/i], ["news", /news|subscri|рассыл|новост/i], ["tags", /tag|categor|group|label|тег|метк|категор|групп/i], ["notes", /note|comment|замет|коммент|примеч/i]];
+  const yes = (v) => /^(1|y|yes|true|x|✓|✔|v|да|\+)$/i.test(String(v || "").trim());
+  function crmPrepare(name, table) {
+    table = table.map((r) => r.map((c) => String(c == null ? "" : c).trim())).filter((r) => r.some(Boolean));
+    if (!table.length) throw new Error("The file is empty.");
+    const head0 = table[0], map = {}, cols = [], skipped = [];
+    const isHeader = !head0.some((c) => EMAIL_RE.test(c));
+    if (isHeader) head0.forEach((h, i) => { const hit = COLS.find(([k, re]) => !(k in map) && re.test(h)); if (hit) { map[hit[0]] = i; cols.push([hit[0], h]); } else if (h) skipped.push(h); });
+    const data = isHeader ? table.slice(1) : table;
+    if (!("email" in map)) { const n = Math.max(...data.slice(0, 20).map((r) => r.length)); for (let i = 0; i < n; i++) if (data.slice(0, 20).some((r) => EMAIL_RE.test(r[i] || ""))) { map.email = i; cols.push(["email", isHeader ? head0[i] : `column ${i + 1}`]); break; } }
+    if (!("email" in map) && !("name" in map) && !("first" in map)) throw new Error("I couldn't find a name or email column. The first row should have titles like Name, Email, Phone, News, Tags.");
+    const byEmail = new Map(), rows = [];
+    for (const r of data) {
+      const g = (k) => (k in map ? r[map[k]] || "" : "");
+      const name = (g("name") || [g("first"), g("last")].filter(Boolean).join(" ")).replace(/^([^,]+),\s*([^,]+)$/, "$2 $1"), email = g("email").toLowerCase().replace(/^mailto:/, "");
+      const c = { name: name || null, email: EMAIL_RE.test(email) ? email : null, phone: g("phone") || null, tags: split(g("tags").replace(/;/g, ",")).join(", ") || null, notes: g("notes") || null };
+      if ("news" in map) c.news = yes(g("news"));
+      if (!c.name && !c.email && !c.phone) continue;
+      if (c.email && byEmail.has(c.email)) { const o = byEmail.get(c.email); for (const k of ["name", "phone", "notes"]) o[k] = o[k] || c[k]; o.tags = [...new Set([...split(o.tags), ...split(c.tags)])].join(", ") || null; if ("news" in c) o.news = o.news || c.news; continue; }
+      if (c.email) byEmail.set(c.email, c); rows.push(c);
+    }
+    if (!rows.length) throw new Error("No contacts found in the file.");
+    const known = rows.filter((c) => c.email && DB.crm_contacts.some((x) => x.email === c.email)).length;
+    return { file: name, rows, cols, skipped, hasNews: "news" in map, known, fresh: rows.length - known, noEmail: rows.filter((c) => !c.email).length };
+  }
+  async function crmDoImport() {
+    const extraTag = ($("crm-imp-tag") || {}).value ? $("crm-imp-tag").value.trim() : "", newsForNew = !!($("crm-imp-news") || {}).checked;
+    const merged = crmImport.rows.map((c) => {
+      const ex = c.email && DB.crm_contacts.find((x) => x.email === c.email);
+      const tags = [...new Set([...split(ex && ex.tags), ...split(c.tags), ...(extraTag ? [extraTag] : [])])].join(", ") || null;
+      if (ex) return { id: ex.id, name: c.name || ex.name, email: ex.email, phone: c.phone || ex.phone, notes: c.notes || ex.notes, tags, news: "news" in c ? c.news || ex.news : ex.news };
+      return { name: c.name, email: c.email, phone: c.phone, notes: c.notes, tags, news: "news" in c ? c.news : newsForNew, source: crmImport.file.slice(0, 120) };
+    });
+    if (DEMO) { merged.forEach((m, i) => { const ex = m.id && DB.crm_contacts.find((x) => x.id === m.id); if (ex) Object.assign(ex, m); else DB.crm_contacts.unshift({ id: "k" + Date.now() + i, created_at: new Date().toISOString(), ...m }); }); }
+    else {
+      const upd = merged.filter((m) => m.id), add = merged.filter((m) => !m.id);
+      for (let i = 0; i < upd.length; i += 500) await q(sb.from("crm_contacts").upsert(upd.slice(i, i + 500)));
+      for (let i = 0; i < add.length; i += 500) await q(sb.from("crm_contacts").insert(add.slice(i, i + 500)));
+      DB.crm_contacts = await loadCrm();
+    }
+    const n = merged.length; crmImport = null; toast(`Imported ${n} contact${n === 1 ? "" : "s"}`); render();
+  }
+  async function loadCrm() {
+    const out = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await sb.from("crm_contacts").select("*").order("created_at", { ascending: false }).order("id").range(from, from + 999);
+      if (error) return out; out.push(...data); if (data.length < 1000) return out;
+    }
+  }
+  async function crmSave(id, patch) {
+    const c = DB.crm_contacts.find((x) => x.id === id); if (!c) return;
+    if (!DEMO) { const { error } = await sb.from("crm_contacts").update(patch).eq("id", id); if (error) throw new Error(/duplicate|unique/i.test(error.message) ? "This email is already in your CRM." : "Couldn't save. Please try again."); }
+    Object.assign(c, patch);
+  }
+  document.addEventListener("change", async (e) => {
+    const t = e.target;
+    if (t.id === "crm-newsonly") { crmNewsOnly = t.checked; crmLimit = 200; render(); return; }
+    if (t.id === "crm-file") {
+      const f = t.files[0]; t.value = ""; if (!f) return;
+      try { crmImport = crmPrepare(f.name, await readTable(f)); render(); } catch (x) { toast(x.message || "Couldn't read this file."); }
+      return;
+    }
+    const cf = t.closest && t.closest("[data-cf]"); if (!cf) return;
+    const id = cf.closest("[data-crm]").dataset.crm, k = cf.dataset.cf;
+    let v = k === "news" ? cf.checked : cf.value.trim();
+    if (k === "email") { v = v.toLowerCase(); if (v && !EMAIL_RE.test(v)) { toast("Please check the email address."); return; } }
+    if (k === "tags") { v = split(v).join(", "); cf.value = v; }
+    try { await crmSave(id, { [k]: k === "news" ? v : v || null }); cf.classList.add("saved"); setTimeout(() => cf.classList.remove("saved"), 900); }
+    catch (x) { toast(x.message); if (k === "news") cf.checked = !cf.checked; }
+  });
+  document.addEventListener("click", async (e) => {
+    const T = (s) => e.target.closest(s); let el;
+    if (T("[data-crmmore]")) { crmLimit += 200; render(); return; }
+    if (T("[data-crmimpcancel]")) { crmImport = null; render(); return; }
+    if ((el = T("[data-crmimport]"))) { el.disabled = true; el.textContent = "Importing…"; try { await crmDoImport(); } catch (x) { toast("Import didn't finish: " + String(x.message || "").slice(0, 80)); render(); } return; }
+    if (T("[data-crmmail]")) { openBulk("news"); return; }
+    if (T("[data-crmadd]")) {
+      try {
+        const row = DEMO ? { id: "k" + Date.now(), created_at: new Date().toISOString(), news: false } : await q(sb.from("crm_contacts").insert({ news: false }).select().single());
+        DB.crm_contacts.unshift(row); qs.crm = ""; crmNewsOnly = false; render();
+        const inp = document.querySelector(`[data-crm="${row.id}"] [data-cf="name"]`); if (inp) inp.focus();
+      } catch { toast("Couldn't add. Please try again."); }
+      return;
+    }
+    if ((el = T("[data-crmdel]"))) {
+      if (el.dataset.armed !== "1") { el.dataset.armed = "1"; el.textContent = "Delete?"; setTimeout(() => { if (el.isConnected) { el.dataset.armed = ""; el.textContent = "✕"; } }, 4000); return; }
+      const id = el.dataset.crmdel;
+      try { if (!DEMO) await q(sb.from("crm_contacts").delete().eq("id", id)); DB.crm_contacts = DB.crm_contacts.filter((x) => x.id !== id); render(); } catch { toast("Couldn't delete. Please try again."); }
+    }
+  });
+
   function reqCard(r) {
     return `<article class="card req${r.contacted || r.archived ? " done" : ""}">
       <div class="req-top"><h3>${esc(r.name || "(no name)")}</h3><span class="small muted">${fmtWhen(r.created_at)}</span></div>
@@ -603,11 +770,12 @@
         <button class="btn ghost sm" type="button" data-archive="inquiries" data-id="${r.id}">${r.archived ? "Restore" : "Archive"}</button></div></article>`;
   }
   function vRequests() {
+    if (reqFilter === "crm") return vCrm();
     const s = qs.requests.toLowerCase();
     const rows = DB.inquiries.filter((r) => !r.archived && (reqFilter === "all" || (reqFilter === "done") === !!r.contacted) && (!s || [r.name, r.email, r.phone, r.format, r.modalities, r.goal].join(" ").toLowerCase().includes(s)));
     const active = DB.inquiries.filter((r) => !r.archived);
     return head("From your websites", "Requests", `${active.length} active · ${active.filter((r) => !r.contacted).length} new. Booking and contact forms from retreat.milabrown.pro and milabrown.pro.`) +
-      `<div class="toolbar">${chips("req", reqFilter, [["new", "New"], ["done", "Contacted"], ["all", "All"]])}${search("requests", "Search name, email…")}</div>
+      `<div class="toolbar">${chips("req", reqFilter, REQ_CHIPS())}${search("requests", "Search name, email…")}</div>
       <div class="stack">${rows.map(reqCard).join("") || `<div class="empty">${DB.inquiries.length ? "Nothing here." : "No requests yet."}</div>`}</div>`;
   }
 
